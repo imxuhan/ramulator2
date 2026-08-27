@@ -26,10 +26,12 @@ class DDR5_RFM(DDR5):
     ]
 
 
-# Inherit all DDR5 presets, adding nRFM timings
+# Inherit supported DDR5 presets, adding nRFM timings
 DDR5_RFM.org_presets = DDR5.org_presets
 DDR5_RFM.timing_presets = {}
 for _name, _timings in DDR5.timing_presets.items():
+    if _timings["rate"] > 6400:
+        continue
     _rfm_timings = dict(_timings)
     # nRFM = nRFC (same as REFab duration per JEDEC)
     _tCK_ps = _timings["tCK_ps"]

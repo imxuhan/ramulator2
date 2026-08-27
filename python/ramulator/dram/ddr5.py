@@ -1,5 +1,3 @@
-import math
-
 from ramulator.dram.spec import DRAMStandard, TimingConstraint
 
 
@@ -35,6 +33,8 @@ class DDR5(DRAMStandard):
         "rate", "nBL", "nCL", "nRCD", "nRP", "nRAS", "nRC",
         "nWR", "nRTP", "nCWL", "nPPD",
         "nCCDS", "nCCDL", "nCCDS_WR", "nCCDL_WR",
+        "nCCDM", "nCCDM_WR", "nWTRM",   # Sibling bank timings for high speedbins
+        "nRTW",
         "nRRDS", "nRRDL", "nWTRS", "nWTRL",
         "nFAW", "nRFC", "nREFI", "nCS", "tCK_ps",
     ]
@@ -55,8 +55,8 @@ class DDR5(DRAMStandard):
         TimingConstraint(level="Rank", preceding=["RD", "RDA"], following=["RD", "RDA"], latency="nCCDS"),
         # Rank — CAS write timing (different bank group, DDR5 separates read/write)
         TimingConstraint(level="Rank", preceding=["WR", "WRA"], following=["WR", "WRA"], latency="nCCDS_WR"),
-        # Rank — read-to-write turnaround (tRPST=0.5→2 tCK, tWPRE=2 tCK)
-        TimingConstraint(level="Rank", preceding=["RD", "RDA"], following=["WR", "WRA"], latency="nCL + nBL + 2 - nCWL + 2"),
+        # Rank — read-to-write turnaround
+        TimingConstraint(level="Rank", preceding=["RD", "RDA"], following=["WR", "WRA"], latency="nRTW"),
         # Rank — write-to-read turnaround
         TimingConstraint(level="Rank", preceding=["WR", "WRA"], following=["RD", "RDA"], latency="nCWL + nBL + nWTRS"),
         # Rank — sibling (rank switching)
@@ -79,12 +79,18 @@ class DDR5(DRAMStandard):
         TimingConstraint(level="Rank", preceding=["WRA"], following=["REFab"], latency="nCWL + nBL + nWR + nRP"),
         TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT", "PREab"], latency="nRFC"),
 
-        # BankGroup — same-group read CAS timing
-        TimingConstraint(level="BankGroup", preceding=["RD", "RDA"], following=["RD", "RDA"], latency="nCCDL"),
-        # BankGroup — same-group write CAS timing (DDR5: separate nCCDL_WR)
-        TimingConstraint(level="BankGroup", preceding=["WR", "WRA"], following=["WR", "WRA"], latency="nCCDL_WR"),
-        # BankGroup — same-group write-to-read
-        TimingConstraint(level="BankGroup", preceding=["WR", "WRA"], following=["RD", "RDA"], latency="nCWL + nBL + nWTRL"),
+        # Bank — same-bank read CAS timing
+        TimingConstraint(level="Bank", preceding=["RD", "RDA"], following=["RD", "RDA"], latency="nCCDL"),
+        # Bank — same-bank write CAS timing
+        TimingConstraint(level="Bank", preceding=["WR", "WRA"], following=["WR", "WRA"], latency="nCCDL_WR"),
+        # Bank — same-bank write-to-read
+        TimingConstraint(level="Bank", preceding=["WR", "WRA"], following=["RD", "RDA"], latency="nCWL + nBL + nWTRL"),
+
+        # Sibling bank timings for high speedbins
+        TimingConstraint(level="Bank", preceding=["RD", "RDA"], following=["RD", "RDA"], latency="nCCDM", sibling=True),
+        TimingConstraint(level="Bank", preceding=["WR", "WRA"], following=["WR", "WRA"], latency="nCCDM_WR", sibling=True),
+        TimingConstraint(level="Bank", preceding=["WR", "WRA"], following=["RD", "RDA"], latency="nCWL + nBL + nWTRM", sibling=True),
+
         # BankGroup — same-group RAS timing
         TimingConstraint(level="BankGroup", preceding=["ACT"], following=["ACT"], latency="nRRDL"),
 
@@ -108,62 +114,117 @@ class DDR5(DRAMStandard):
         timing_dict["nRFC"] = cls._resolve_nRFC(org_dict["density"], timing_dict["tCK_ps"])
         timing_dict["nREFI"] = cls._resolve_nREFI(timing_dict["tCK_ps"])
 
+        rate = timing_dict["rate"]
+        tCK_ps = timing_dict["tCK_ps"]
+        dq = org_dict["dq"]
+
+        rmw_write_gap = max(32, cls._min_cycles(20_000, tCK_ps))
+        jw_write_gap = max(16, cls._min_cycles(10_000, tCK_ps))
+        timing_dict["nCCDL_WR"] = rmw_write_gap if dq == 4 else jw_write_gap
+
+        timing_dict["nCCDM"] = cls._resolve_nCCDM(rate, tCK_ps, timing_dict["nCCDL"])
+        timing_dict["nCCDM_WR"] = cls._resolve_nCCDM_WR(rate, tCK_ps, rmw_write_gap)
+        timing_dict["nWTRM"] = cls._resolve_nWTRM(rate, tCK_ps, timing_dict["nWTRL"])
+        timing_dict["nRTW"] = cls._resolve_nRTW(timing_dict)
+
     @staticmethod
     def _resolve_nRRDS(dq, rate):
-        # DDR5 nRRD_S from JEDEC tables (nCK)
-        # dq → row index: x4=0, x8=1, x16=2
-        _table = {
-            #        3200  4800
-            (4,  3200): 8, (4,  4800): 8,
-            (8,  3200): 8, (8,  4800): 8,
-            (16, 3200): 8, (16, 4800): 8,
-        }
-        val = _table.get((dq, rate))
-        if val is not None:
-            return val
-        # Fallback for rates not in table: tRRD_S = 5 ns minimum
-        tCK_ps = 2_000_000 / rate
-        return max(8, math.ceil(5 * 1000 / tCK_ps))
+        return 8
 
     @staticmethod
     def _resolve_nRRDL(dq, rate):
-        # DDR5 nRRD_L from JEDEC tables (nCK)
-        _table = {
-            #        3200   4800
-            (4,  3200): 5, (4,  4800): 12,
-            (8,  3200): 5, (8,  4800): 12,
-            (16, 3200): 5, (16, 4800): 12,
-        }
-        val = _table.get((dq, rate))
-        if val is not None:
-            return val
-        # Fallback for rates not in table: tRRD_L = 5 ns minimum
-        tCK_ps = 2_000_000 / rate
-        return max(8, math.ceil(5 * 1000 / tCK_ps))
+        tCK_ps = 2_000_000 // rate
+        if rate <= 6400:
+            return max(8, DDR5._min_cycles(5_000, tCK_ps))
+        return DDR5._resolve_nCCDM(rate, tCK_ps, -1)
 
     @staticmethod
     def _resolve_nFAW(dq, rate):
-        # DDR5 tFAW: ~20 ns for 1KB page, ~25 ns for 2KB page
-        if dq <= 8:
-            tFAW_ns = 20
-        else:
-            tFAW_ns = 25
-        tCK_ps = 2_000_000 / rate
-        return max(32, math.ceil(tFAW_ns * 1000 / tCK_ps))
+        return 40 if dq == 16 else 32
 
     @staticmethod
     def _resolve_nRFC(density, tCK_ps):
-        # DDR5 tRFC1 (all-bank refresh) from JEDEC
-        if density <= 8192:    tRFC_ns = 195
-        elif density <= 16384: tRFC_ns = 295
-        elif density <= 32768: tRFC_ns = 410
+        if density <= 8192:    tRFC_ps = 195_000
+        elif density <= 16384: tRFC_ps = 295_000
+        elif density <= 32768: tRFC_ps = 410_000
         else: return -1
-        return math.ceil(tRFC_ns * 1000 / tCK_ps)
+        return DDR5._min_cycles(tRFC_ps, tCK_ps)
 
     @staticmethod
     def _resolve_nREFI(tCK_ps):
-        # DDR5 tREFI = 3900 ns (half of DDR4's 7800 ns)
-        return math.ceil(3_900_000 / tCK_ps)
+        return 3_900_000 // tCK_ps
+
+    @staticmethod
+    def _min_cycles(timing_ps, tCK_ps):
+        """Apply the JESD79-5C Section 13.2 minimum-timing conversion."""
+        return ((timing_ps * 997) // tCK_ps + 1000) // 1000
+
+    # JESD79-5C Tables 333-334: high-speed M timings.
+    @classmethod
+    def _resolve_nCCDM(cls, rate, tCK_ps, nCCDL):
+        if rate <= 6400:
+            return nCCDL
+        _table = {
+            6800: 4705,
+            7200: 4444,
+            7600: 4210,
+            8000: 4000,
+            8400: 4000,
+            8800: 3863,
+        }
+        tCCDM_ps = _table.get(rate)
+        if tCCDM_ps is None:
+            return -1
+        return max(8, cls._min_cycles(tCCDM_ps, tCK_ps))
+
+    @classmethod
+    def _resolve_nCCDM_WR(cls, rate, tCK_ps, rmw_write_gap):
+        if rate <= 6400:
+            return rmw_write_gap
+        _table = {
+            6800: 18823,
+            7200: 17777,
+            7600: 16842,
+            8000: 16000,
+            8400: 15238,
+            8800: 14545,
+        }
+        tCCDM_WR_ps = _table.get(rate)
+        if tCCDM_WR_ps is None:
+            return -1
+        return max(32, cls._min_cycles(tCCDM_WR_ps, tCK_ps))
+
+    @classmethod
+    def _resolve_nWTRM(cls, rate, tCK_ps, nWTRL):
+        if rate <= 6400:
+            return nWTRL
+        _table = {
+            6800: 9411,
+            7200: 8888,
+            7600: 8421,
+            8000: 8000,
+            8400: 7619,
+            8800: 7272,
+        }
+        tWTRM_ps = _table.get(rate)
+        if tWTRM_ps is None:
+            return -1
+        return max(16, cls._min_cycles(tWTRM_ps, tCK_ps))
+
+    @staticmethod
+    def _resolve_nRTW(timing_dict):
+        rate = timing_dict["rate"]
+        # Shortest legal WPRE mode, with zero Read DQS offset.
+        wpre = 2 if rate <= 4800 else 3 if rate <= 6400 else 4
+        rpst_extension = 0 if rate <= 4800 else 1
+        return (
+            timing_dict["nCL"]
+            + timing_dict["nBL"]
+            + 2
+            + rpst_extension
+            + wpre
+            - timing_dict["nCWL"]
+        )
 
 
 # ---- DDR5 JEDEC preset data ----
@@ -180,8 +241,8 @@ DDR5.org_presets = {
     "DDR5_32Gb_x16": {"density": 32768, "dq": 16, "channel_width": 32, "rank": 1, "bankgroup": 4, "bank": 4, "row": 1<<17, "column": 1<<10},
 }
 
-# Primary timings only — secondary timings (nRRDS, nRRDL, nFAW, nRFC, nREFI)
-# are resolved from JEDEC tables in resolve_secondary_timings().
+# Primary timing presets; organization- and rate-dependent timings are
+# finalized by resolve_secondary_timings().
 DDR5.timing_presets = {
     # DDR5-3200 (tCK = 625 ps)
     "DDR5_3200AN": {"rate": 3200, "nBL": 8, "nCL": 24, "nRCD": 24, "nRP": 24, "nRAS": 52, "nRC": 76,  "nWR": 48, "nRTP": 12, "nCWL": 22, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 6,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
@@ -195,4 +256,8 @@ DDR5.timing_presets = {
     "DDR5_5600AN": {"rate": 5600, "nBL": 8, "nCL": 40, "nRCD": 40, "nRP": 40, "nRAS": 90, "nRC": 130, "nWR": 84, "nRTP": 20, "nCWL": 38, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 56, "nWTRS": 5,  "nWTRL": 28, "nCS": 2, "tCK_ps": 357},
     # DDR5-6400 (tCK = 312 ps)
     "DDR5_6400AN": {"rate": 6400, "nBL": 8, "nCL": 46, "nRCD": 46, "nRP": 46, "nRAS": 103, "nRC": 149, "nWR": 96, "nRTP": 24, "nCWL": 44, "nPPD": 2, "nCCDS": 8,  "nCCDL": 16, "nCCDS_WR": 8,  "nCCDL_WR": 64, "nWTRS": 5,  "nWTRL": 32, "nCS": 2, "tCK_ps": 312},
+    # DDR5-8400 (tCK = 238 ps), JESD79-5C Table 294
+    "DDR5_8400AN": {"rate": 8400, "nBL": 8, "nCL": 60, "nRCD": 60, "nRP": 60, "nRAS": 135, "nRC": 195, "nWR": 126, "nRTP": 32, "nCWL": 58, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
+    "DDR5_8400B":  {"rate": 8400, "nBL": 8, "nCL": 68, "nRCD": 68, "nRP": 68, "nRAS": 135, "nRC": 203, "nWR": 126, "nRTP": 32, "nCWL": 66, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
+    "DDR5_8400C":  {"rate": 8400, "nBL": 8, "nCL": 74, "nRCD": 74, "nRP": 74, "nRAS": 135, "nRC": 209, "nWR": 126, "nRTP": 32, "nCWL": 72, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
 }

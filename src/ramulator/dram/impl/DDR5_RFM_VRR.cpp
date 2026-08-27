@@ -50,6 +50,10 @@ class DDR5_RFM_VRR : public DRAMSpec {
       nCCDL,
       nCCDS_WR,
       nCCDL_WR,
+      nCCDM,
+      nCCDM_WR,
+      nWTRM,
+      nRTW,
       nRRDS,
       nRRDL,
       nWTRS,
@@ -83,10 +87,10 @@ class DDR5_RFM_VRR : public DRAMSpec {
     set_names(commands, command_names,
               {"ACT", "PREpb", "PREab", "RD", "WR", "RDA", "WRA", "REFab", "RFMab", "RFMpb", "VRR"});
     set_names(states, state_names, {"Opened", "Closed", "N_A"});
-    set_names(timings, timing_names,
-              {"rate",  "nBL",  "nCL",   "nRCD",  "nRP",      "nRAS",     "nRC",   "nWR",    "nRTP",
-               "nCWL",  "nPPD", "nCCDS", "nCCDL", "nCCDS_WR", "nCCDL_WR", "nRRDS", "nRRDL",  "nWTRS",
-               "nWTRL", "nFAW", "nRFC",  "nREFI", "nCS",      "tCK_ps",   "nRFM",  "nRFMpb", "nVRR"});
+    set_names(timings, timing_names, {"rate",     "nBL",   "nCL",  "nRCD",   "nRP",   "nRAS",     "nRC",      "nWR",
+                                      "nRTP",     "nCWL",  "nPPD", "nCCDS",  "nCCDL", "nCCDS_WR", "nCCDL_WR", "nCCDM",
+                                      "nCCDM_WR", "nWTRM", "nRTW", "nRRDS",  "nRRDL", "nWTRS",    "nWTRL",    "nFAW",
+                                      "nRFC",     "nREFI", "nCS",  "tCK_ps", "nRFM",  "nRFMpb",   "nVRR"});
 
     // Static spec data
     internal_prefetch_size = 16;

@@ -47,6 +47,10 @@ class DDR5 : public DRAMSpec {
       nCCDL,
       nCCDS_WR,
       nCCDL_WR,
+      nCCDM,
+      nCCDM_WR,
+      nWTRM,
+      nRTW,
       nRRDS,
       nRRDL,
       nWTRS,
@@ -74,9 +78,10 @@ class DDR5 : public DRAMSpec {
     set_names(levels, level_names, {"Channel", "Rank", "BankGroup", "Bank", "Row", "Column"});
     set_names(commands, command_names, {"ACT", "PREpb", "PREab", "RD", "WR", "RDA", "WRA", "REFab"});
     set_names(states, state_names, {"Opened", "Closed", "N_A"});
-    set_names(timings, timing_names, {"rate",  "nBL",   "nCL",   "nRCD",  "nRP",   "nRAS",     "nRC",      "nWR",
-                                      "nRTP",  "nCWL",  "nPPD",  "nCCDS", "nCCDL", "nCCDS_WR", "nCCDL_WR", "nRRDS",
-                                      "nRRDL", "nWTRS", "nWTRL", "nFAW",  "nRFC",  "nREFI",    "nCS",      "tCK_ps"});
+    set_names(timings, timing_names,
+              {"rate",  "nBL",   "nCL",   "nRCD",     "nRP",      "nRAS",  "nRC",      "nWR",   "nRTP", "nCWL",
+               "nPPD",  "nCCDS", "nCCDL", "nCCDS_WR", "nCCDL_WR", "nCCDM", "nCCDM_WR", "nWTRM", "nRTW", "nRRDS",
+               "nRRDL", "nWTRS", "nWTRL", "nFAW",     "nRFC",     "nREFI", "nCS",      "tCK_ps"});
 
     // Static spec data
     internal_prefetch_size = 16;
