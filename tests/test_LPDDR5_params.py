@@ -1,6 +1,6 @@
 '''
 checks that the newly added timing values are mapped correctly 
-and hold the right values according to JESD209-5B (LPDDR5)
+and hold the right values according to JESD209-5C (LPDDR5)
 run with: PYTHONPATH="$PWD/python:$PWD/tests" python3 -m pytest -s -q tests/test_LPDDR5_params.py
 '''
 
@@ -35,7 +35,7 @@ def test_lpddr5_8gb_6400_timing_parameters():
     expected = {
         "nBL_min": 2,
         "nBL_max": 4,
-        "nRFC": 168,       # JESD209-5B Table 235: tRFCab = 210 ns / 1.25 ns.
+        "nRFC": 168,       # JESD209-5C Table 240: tRFCab = 210 ns / 1.25 ns.
         "nRFCpb": 96,      # 120 ns / 1.25 ns
         "nPBR2PBR": 72,    # 90 ns / 1.25 ns
         "nPBR2ACT": 6,     # 7.5 ns / 1.25 ns
@@ -62,7 +62,7 @@ def test_lpddr5_8gb_6400_timing_parameters():
 
 
 def expected_nRFC(density, tCK_ps):
-    # JESD209-5B Table 235: tRFCab.
+    # JESD209-5C Table 240: tRFCab.
     if density <= 2048:
         ns = 130
     elif density <= 4096:
@@ -77,7 +77,7 @@ def expected_nRFC(density, tCK_ps):
 
 
 def expected_nRFCpb(density, tCK_ps):
-    # JESD209-5B Table 235: tRFCpb.
+    # JESD209-5C Table 240: tRFCpb.
     if density <= 2048:
         ns = 60
     elif density <= 4096:
@@ -92,13 +92,13 @@ def expected_nRFCpb(density, tCK_ps):
 
 
 def expected_nPBR2PBR(density, tCK_ps):
-    # JESD209-5B Table 235: tpbR2pbR.
+    # JESD209-5C Table 240: tpbR2pbR.
     ns = 60 if density <= 2048 else 90
     return math.ceil(ns * 1000 / tCK_ps)
 
 
 def expected_nPBR2ACT(tCK_ps):
-    # JESD209-5B Table 235: tpbR2act.
+    # JESD209-5C Table 240: tpbR2act.
     return math.ceil(7500 / tCK_ps)
 
 

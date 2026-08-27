@@ -24,7 +24,7 @@ class LPDDR5Controller final : public LPDDRControllerBase {
     m_nAAD = spec.get_timing_value("nAAD");
     m_read_latency = spec.get_timing_value("nCL");
     m_write_latency = spec.get_timing_value("nCWL");
-    m_burst_cycles = spec.get_timing_value("nBL_min");
+    m_burst_cycles = spec.get_timing_value("nBL_max");
     m_nWCKPST = spec.get_timing_value("nWCKPST");
     m_cas_deadline_guard = 1;
   }
