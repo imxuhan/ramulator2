@@ -57,16 +57,15 @@ def test_REFpb_ACT_same_bank():
 
     dut.issue("ACT1", a0, 0)
     dut.issue("ACT2", a0, 1)
-    dut.issue("PREpb", a0, nRAS)
+    pre_clk = 1 + nRAS
+    dut.issue("PREpb", a0, pre_clk)
 
-    ref_clk = nRAS + nRP
+    ref_clk = pre_clk + nRP
     dut.issue("REFpb", a0, ref_clk)
 
-    # REFpb<->ACT (same bank) = tRFCpb
-    if nRFCpb > 1:
-        assert_DUT(dut, "ACT1", a1, ref_clk +nRFCpb-1, preq="ACT1", timing_OK=False, ready=False)
-    
-    assert_DUT(dut, "ACT1", a1, ref_clk +nRFCpb, preq="ACT1", timing_OK=True, ready=True)
+    dut.issue("ACT1", a1, ref_clk + nRFCpb - 2)
+    assert_DUT(dut, "ACT2", a1, ref_clk + nRFCpb - 1, preq="ACT2", timing_OK=False, ready=False)
+    assert_DUT(dut, "ACT2", a1, ref_clk + nRFCpb, preq="ACT2", timing_OK=True, ready=True)
 
 
 def test_REFpb_needs_PRE_pb_when_bank_open():
@@ -83,7 +82,7 @@ def test_ACT_RD_REFpb():
     dut.issue("ACT2", a0, 1)
 
 
-def test_refpb_waits_for_nrc_after_act1_then_requires_precharge():
+def test_refpb_waits_for_nrc_after_act2_then_requires_precharge():
     dut = make_lpddr5_device()
     a0 = get_addr(row=123, bankgroup=0, bank=0)
 
@@ -95,24 +94,25 @@ def test_refpb_waits_for_nrc_after_act1_then_requires_precharge():
     dut.issue("ACT2", a0, 1)
 
 
-    # ACT1<->REFpb = nRC (?)
+    # ACT2<->REFpb = nRC
     if nRC > 1:
-        assert_DUT(dut, "REFpb", a0, nRC - 1, preq="PREpb", timing_OK=False, ready=False)
+        assert_DUT(dut, "REFpb", a0, 1 + nRC - 1, preq="PREpb", timing_OK=False, ready=False)
 
     # cannot issue REFpb directly at nRC because the bank is open
     # timing may be OK, but the prerequisite should still be PREpb
-    assert_DUT( dut, "REFpb", a0, nRC, preq="PREpb", timing_OK=True, ready=False)
+    assert_DUT( dut, "REFpb", a0, 1 + nRC, preq="PREpb", timing_OK=True, ready=False)
 
-    # ACT1<->PREpb = nRAS
-    dut.issue("PREpb", a0, nRAS)
+    # ACT2<->PREpb = nRAS
+    pre_clk = 1 + nRAS
+    dut.issue("PREpb", a0, pre_clk)
 
-    assert_DUT(dut, "RD", a0, nRAS + 1, preq="ACT1", row_open=False, row_hit=False)
+    assert_DUT(dut, "RD", a0, pre_clk + 1, preq="ACT1", row_open=False, row_hit=False)
 
     # PREpb<->REFpb = nRP
     if nRP > 1:
-        assert_DUT(dut, "REFpb", a0, nRAS + nRP - 1, preq="REFpb", timing_OK=False, ready=False)
+        assert_DUT(dut, "REFpb", a0, pre_clk + nRP - 1, preq="REFpb", timing_OK=False, ready=False)
 
-    assert_DUT(dut, "REFpb", a0, nRAS + nRP, preq="REFpb", timing_OK=True, ready=True)
+    assert_DUT(dut, "REFpb", a0, pre_clk + nRP, preq="REFpb", timing_OK=True, ready=True)
 
 def test_prepb_only_closes_target_bank():
     dut = make_lpddr5_device()
@@ -148,9 +148,9 @@ def test_refpb_to_act_same_bank_respects_nrfcpb():
 
     dut.issue("REFpb", a_refreshed_bank, ref_clk)
 
-    # REFpb <-> ACT1 = nRFCpb
-    assert_DUT(dut, "ACT1", a_same_bank_new_row, ref_clk + nRFCpb - 1, preq="ACT1",  timing_OK=False, ready=False)
-    assert_DUT(dut, "ACT1", a_same_bank_new_row, ref_clk + nRFCpb, preq="ACT1", timing_OK=True, ready=True)
+    dut.issue("ACT1", a_same_bank_new_row, ref_clk + nRFCpb - 2)
+    assert_DUT(dut, "ACT2", a_same_bank_new_row, ref_clk + nRFCpb - 1, preq="ACT2", timing_OK=False, ready=False)
+    assert_DUT(dut, "ACT2", a_same_bank_new_row, ref_clk + nRFCpb, preq="ACT2", timing_OK=True, ready=True)
 
 def test_refab_to_act_any_bank_respects_nrfc():
     dut = make_lpddr5_device()
@@ -169,11 +169,13 @@ def test_refab_to_act_any_bank_respects_nrfc():
 
     dut.issue("REFab", refab_addr, ref_clk)
 
-    assert_DUT(dut, "ACT1", a_bank0, ref_clk + nRFC - 1, preq="ACT1", timing_OK=False, ready=False)
-    assert_DUT(dut, "ACT1", a_bank1, ref_clk + nRFC - 1, preq="ACT1", timing_OK=False, ready=False)
+    dut.issue("ACT1", a_bank0, ref_clk + nRFC - 3)
+    dut.issue("ACT1", a_bank1, ref_clk + nRFC - 2)
+    assert_DUT(dut, "ACT2", a_bank0, ref_clk + nRFC - 1, preq="ACT2", timing_OK=False, ready=False)
+    assert_DUT(dut, "ACT2", a_bank1, ref_clk + nRFC - 1, preq="ACT2", timing_OK=False, ready=False)
 
-    assert_DUT(dut, "ACT1", a_bank0, ref_clk + nRFC, preq="ACT1", timing_OK=True, ready=True)
-    assert_DUT(dut, "ACT1", a_bank1, ref_clk + nRFC, preq="ACT1", timing_OK=True, ready=True)
+    assert_DUT(dut, "ACT2", a_bank0, ref_clk + nRFC, preq="ACT2", timing_OK=True, ready=True)
+    assert_DUT(dut, "ACT2", a_bank1, ref_clk + nRFC, preq="ACT2", timing_OK=True, ready=True)
 
 
 def test_refpb_blocks_same_bank_for_nrfcpb_and_other_bank_for_npbr2act():
@@ -187,13 +189,13 @@ def test_refpb_blocks_same_bank_for_nrfcpb_and_other_bank_for_npbr2act():
     ref_clk = 0
     dut.issue("REFpb", a_refreshed_bank, ref_clk)
 
-    # same refreshed bank is blocked for full tRFCpb
-    assert_DUT(dut, "ACT1", a_same_bank, ref_clk + nRFCpb - 1, preq="ACT1", timing_OK=False, ready=False)
-    assert_DUT(dut, "ACT1", a_same_bank, ref_clk + nRFCpb, preq="ACT1", timing_OK=True, ready=True)
+    dut.issue("ACT1", a_other_bank, ref_clk + nPBR2ACT - 2)
+    assert_DUT(dut, "ACT2", a_other_bank, ref_clk + nPBR2ACT - 1, preq="ACT2", timing_OK=False, ready=False)
+    assert_DUT(dut, "ACT2", a_other_bank, ref_clk + nPBR2ACT, preq="ACT2", timing_OK=True, ready=True)
 
-    # different bank is blocked only for tpbr2act
-    assert_DUT(dut, "ACT1", a_other_bank, ref_clk + nPBR2ACT - 1, preq="ACT1", timing_OK=False, ready=False)
-    assert_DUT(dut, "ACT1", a_other_bank, ref_clk + nPBR2ACT, preq="ACT1", timing_OK=True, ready=True)
+    dut.issue("ACT1", a_same_bank, ref_clk + nRFCpb - 2)
+    assert_DUT(dut, "ACT2", a_same_bank, ref_clk + nRFCpb - 1, preq="ACT2", timing_OK=False, ready=False)
+    assert_DUT(dut, "ACT2", a_same_bank, ref_clk + nRFCpb, preq="ACT2", timing_OK=True, ready=True)
 
 
 def test_refpb_to_refab_respects_nrfcpb():

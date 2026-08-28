@@ -96,21 +96,23 @@ class LPDDR6(DRAMStandard):
         TimingConstraint(level="Rank", preceding=["WR_S"], following=["PREab"], latency="nWL + nBL_max + nWTP"),
         TimingConstraint(level="Rank", preceding=["WR_L"], following=["PREab"], latency="nWL + nBL_max_L + nWTP"),
 
-        # RAS and activation constraints (JESD209-6 Tables 383-385 and 414).
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["ACT1"], latency="nRRD"),
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["ACT1"], latency="nFAW", window=4),
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["PREab"], latency="nRAS"),
-        TimingConstraint(level="Rank", preceding=["PREab"], following=["ACT1"], latency="nRPab"),
+        # RAS and activation constraints (JESD209-6 Figures 67-72 and Tables 383-385, 414).
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["ACT2"], latency="nRRD"),
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["ACT2"], latency="nFAW", window=4),
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["PREab"], latency="nRAS"),
+        TimingConstraint(level="Rank", preceding=["PREab"], following=["ACT2"], latency="nRPab"),
         TimingConstraint(level="Rank", preceding=["PREpb", "PREab"], following=["PREpb", "PREab"], latency="nPPD"),
 
-        # Rank — all-bank refresh timing (JESD209-6 Tables 302 and 414).
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["REFab"], latency="nRC"),
-        TimingConstraint(level="Rank", preceding=["PREpb", "PREab"], following=["REFab"], latency="nRP"),
+        # Rank — all-bank refresh timing (JESD209-6 Figure 111 and Tables 300-302, 414).
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["REFab"], latency="nRC"),
+        TimingConstraint(level="Rank", preceding=["PREpb"], following=["REFab"], latency="nRP"),
+        TimingConstraint(level="Rank", preceding=["PREab"], following=["REFab"], latency="nRPab"),
         TimingConstraint(level="Rank", preceding=["RDA_S"], following=["REFab"], latency="nRP + nRTP"),
         TimingConstraint(level="Rank", preceding=["RDA_L"], following=["REFab"], latency="nRP + nRTP_L"),
         TimingConstraint(level="Rank", preceding=["WRA_S"], following=["REFab"], latency="nWL + nBL_max + nWTP + nRP"),
         TimingConstraint(level="Rank", preceding=["WRA_L"], following=["REFab"], latency="nWL + nBL_max_L + nWTP + nRP"),
-        TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT1", "PREab"], latency="nRFC"),
+        TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT2"], latency="nRFC"),
+        TimingConstraint(level="Rank", preceding=["REFab"], following=["PREab"], latency="nRFC"),
 
         # BankGroup — same-BG column timing (JESD209-6 Tables 382-384).
         TimingConstraint(level="BankGroup", preceding=["RD_S", "RDA_S"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nCCDL"),
@@ -125,22 +127,24 @@ class LPDDR6(DRAMStandard):
         # BankGroup — same-BG write-to-read (JESD209-6 Tables 383-384).
         TimingConstraint(level="BankGroup", preceding=["WR_S", "WRA_S"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nWL + nBL_max + nWTRL"),
         TimingConstraint(level="BankGroup", preceding=["WR_L", "WRA_L"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nWL + nBL_max_L + nWTRL"),
-        TimingConstraint(level="BankGroup", preceding=["ACT1"], following=["ACT1"], latency="nRRD"),
 
-        # Bank — single-bank timing (JESD209-6 Tables 383, 391, and 414).
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["ACT1"], latency="nRC"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nRCDr"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["WR_S", "WRA_S", "WR_L", "WRA_L"], latency="nRCDw"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["PREpb"], latency="nRAS"),
-        TimingConstraint(level="Bank", preceding=["PREpb"], following=["ACT1"], latency="nRP"),
+        # BankGroup — ACT-2 to ACT-2 timing (JESD209-6 Figure 71).
+        TimingConstraint(level="BankGroup", preceding=["ACT2"], following=["ACT2"], latency="nRRD"),
+
+        # Bank — single-bank timing (JESD209-6 Figures 67-70 and Tables 383, 391, 414).
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["ACT2"], latency="nRC"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nRCDr"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["WR_S", "WRA_S", "WR_L", "WRA_L"], latency="nRCDw"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["PREpb"], latency="nRAS"),
+        TimingConstraint(level="Bank", preceding=["PREpb"], following=["ACT2"], latency="nRP"),
         TimingConstraint(level="Bank", preceding=["RD_S"], following=["PREpb"], latency="nRTP"),
         TimingConstraint(level="Bank", preceding=["RD_L"], following=["PREpb"], latency="nRTP_L"),
         TimingConstraint(level="Bank", preceding=["WR_S"], following=["PREpb"], latency="nWL + nBL_max + nWTP"),
         TimingConstraint(level="Bank", preceding=["WR_L"], following=["PREpb"], latency="nWL + nBL_max_L + nWTP"),
-        TimingConstraint(level="Bank", preceding=["RDA_S"], following=["ACT1"], latency="nRTP + nRP"),
-        TimingConstraint(level="Bank", preceding=["RDA_L"], following=["ACT1"], latency="nRTP_L + nRP"),
-        TimingConstraint(level="Bank", preceding=["WRA_S"], following=["ACT1"], latency="nWL + nBL_max + nWTP + nRP"),
-        TimingConstraint(level="Bank", preceding=["WRA_L"], following=["ACT1"], latency="nWL + nBL_max_L + nWTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["RDA_S"], following=["ACT2"], latency="nRTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["RDA_L"], following=["ACT2"], latency="nRTP_L + nRP"),
+        TimingConstraint(level="Bank", preceding=["WRA_S"], following=["ACT2"], latency="nWL + nBL_max + nWTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["WRA_L"], following=["ACT2"], latency="nWL + nBL_max_L + nWTP + nRP"),
     ]
 
     @classmethod

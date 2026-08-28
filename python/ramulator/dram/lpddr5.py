@@ -81,22 +81,23 @@ class LPDDR5(DRAMStandard):
         # Rank — column command to PREab (JESD209-5B Tables 331 and 344).
         TimingConstraint(level="Rank", preceding=["RD"], following=["PREab"], latency="nRTP"),
         TimingConstraint(level="Rank", preceding=["WR"], following=["PREab"], latency="nCWL + nBL_min + nWR"),
-        # Rank — RAS timing (JESD209-5B Tables 331-333 and 372; measured from ACT-1).
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["ACT1"], latency="nRRDS"),
+        # Rank — RAS timing (JESD209-5B Tables 331-333 and 372).
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["ACT2"], latency="nRRDS"),
         TimingConstraint(level="Rank", preceding=["ACT1"], following=["ACT1"], latency="nFAW", window=4),
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["PREab"], latency="nRAS"),
-        TimingConstraint(level="Rank", preceding=["PREab"], following=["ACT1"], latency="nRPab"),
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["PREab"], latency="nRAS"),
+        TimingConstraint(level="Rank", preceding=["PREab"], following=["ACT2"], latency="nRPab"),
         # Rank — precharge-to-precharge delay (JESD209-5B Table 372 tPPD).
         TimingConstraint(level="Rank", preceding=["PREpb", "PREab"], following=["PREpb", "PREab"], latency="nPPD"),
         # Rank — refresh entry/recovery (JESD209-5B Tables 235 and 372).
-        TimingConstraint(level="Rank", preceding=["ACT1"], following=["REFab"], latency="nRC"),
+        TimingConstraint(level="Rank", preceding=["ACT2"], following=["REFab"], latency="nRC"),
         TimingConstraint(level="Rank", preceding=["PREpb", "PREab"], following=["REFab"], latency="nRP"),
         TimingConstraint(level="Rank", preceding=["RDA"], following=["REFab"], latency="nRP + nRTP"),
         TimingConstraint(level="Rank", preceding=["WRA"], following=["REFab"], latency="nCWL + nBL_min + nWR + nRP"),
-        TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT1", "PREab", "REFpb", "REFab"], latency="nRFC"),
+        TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT2"], latency="nRFC"),
+        TimingConstraint(level="Rank", preceding=["REFab"], following=["PREab", "REFpb", "REFab"], latency="nRFC"),
         TimingConstraint(level="Rank", preceding=["REFpb"], following=["REFpb"], latency="nPBR2PBR"),
         TimingConstraint(level="Rank", preceding=["REFpb"], following=["REFab"], latency="nRFCpb"),
-        TimingConstraint(level="Rank", preceding=["REFpb"], following=["ACT1"], latency="nPBR2ACT"),
+        TimingConstraint(level="Rank", preceding=["REFpb"], following=["ACT2"], latency="nPBR2ACT"),
 
         # BankGroup — same-BG column timing (JESD209-5B Tables 331-332).
         TimingConstraint(level="BankGroup", preceding=["RD", "RDA"], following=["RD", "RDA"], latency="nCCDL"),
@@ -104,22 +105,22 @@ class LPDDR5(DRAMStandard):
         # BankGroup — same-group write-to-read (JESD209-5B Tables 330-332:
         # WL + BL/n_max + tWTR_L; nBL_max is the column array cycle time).
         TimingConstraint(level="BankGroup", preceding=["WR", "WRA"], following=["RD", "RDA"], latency="nCWL + nBL_max + nWTRL"),
-        # BankGroup — same-BG RAS timing (JESD209-5B Tables 331-332; ACT-1 to ACT-1).
-        TimingConstraint(level="BankGroup", preceding=["ACT1"], following=["ACT1"], latency="nRRDL"),
+        # BankGroup — same-BG RAS timing (JESD209-5B Tables 331-332; ACT-2 to ACT-2).
+        TimingConstraint(level="BankGroup", preceding=["ACT2"], following=["ACT2"], latency="nRRDL"),
 
-        # Bank — single-bank timing (JESD209-5B Tables 331 and 344; measured from ACT-1).
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["ACT1"], latency="nRC"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["RD", "RDA", "WR", "WRA"], latency="nRCD"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["PREpb"], latency="nRAS"),
-        TimingConstraint(level="Bank", preceding=["PREpb"], following=["ACT1"], latency="nRP"),
+        # Bank — single-bank timing (JESD209-5B Tables 331 and 344; measured from ACT-2).
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["ACT2"], latency="nRC"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["RD", "RDA", "WR", "WRA"], latency="nRCD"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["PREpb"], latency="nRAS"),
+        TimingConstraint(level="Bank", preceding=["PREpb"], following=["ACT2"], latency="nRP"),
         TimingConstraint(level="Bank", preceding=["RD"], following=["PREpb"], latency="nRTP"),
         TimingConstraint(level="Bank", preceding=["WR"], following=["PREpb"], latency="nCWL + nBL_min + nWR"),
-        TimingConstraint(level="Bank", preceding=["RDA"], following=["ACT1"], latency="nRTP + nRP"),
-        TimingConstraint(level="Bank", preceding=["WRA"], following=["ACT1"], latency="nCWL + nBL_min + nWR + nRP"),
+        TimingConstraint(level="Bank", preceding=["RDA"], following=["ACT2"], latency="nRTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["WRA"], following=["ACT2"], latency="nCWL + nBL_min + nWR + nRP"),
 
         # Bank — per-bank refresh (JESD209-5B Table 235).
-        TimingConstraint(level="Bank", preceding=["REFpb"], following=["ACT1"], latency="nRFCpb"),
-        TimingConstraint(level="Bank", preceding=["ACT1"], following=["REFpb"], latency="nRC"),
+        TimingConstraint(level="Bank", preceding=["REFpb"], following=["ACT2"], latency="nRFCpb"),
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["REFpb"], latency="nRC"),
         TimingConstraint(level="Bank", preceding=["PREpb"], following=["REFpb"], latency="nRP"),
     ]
 

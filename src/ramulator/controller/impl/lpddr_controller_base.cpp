@@ -7,6 +7,7 @@
 #include "ramulator/controller/impl/lpddr_controller_base.h"
 #include "ramulator/controller/refresh/i_refresh_manager.h"
 #include "ramulator/controller/rowpolicy/i_row_policy.h"
+#include "ramulator/controller/scheduler/i_scheduler.h"
 #include "ramulator/dram/dram_spec.h"
 
 namespace Ramulator {
@@ -87,6 +88,9 @@ void LPDDRControllerBase::tick() {
   }
 
   Candidate cand = urgent_act2.valid ? urgent_act2 : select_normal_candidate();
+  if (!cand.valid) {
+    cand = pick_cas_lookahead_candidate();
+  }
   if (!cand.valid) {
     Candidate deferred = pick_deferred_act2();
     if (deferred.valid) {
@@ -216,10 +220,22 @@ bool LPDDRControllerBase::is_allowed_during_pending_act2(int cmd, const AddrVec_
   }
 
   const auto& meta = m_device.m_spec->command_meta[cmd];
-  if (meta.is_closing || meta.is_refreshing) {
+  if (meta.is_refreshing) {
+    return false;
+  }
+  if (meta.is_closing) {
     return !would_block_activating(cmd, addr_vec);
   }
   return false;
+}
+
+bool LPDDRControllerBase::can_start_act1(const Request& req) {
+  if (req.command != m_cmd_act1) {
+    return true;
+  }
+
+  Clk_t earliest_act2 = m_clk + m_device.m_spec->command_cycles[m_cmd_act1];
+  return m_device.check_timing(m_cmd_act2, req.addr_vec, earliest_act2);
 }
 
 bool LPDDRControllerBase::is_owned_act2_candidate(const Request& req) const {
@@ -236,18 +252,53 @@ bool LPDDRControllerBase::is_owned_act2_candidate(const Request& req) const {
 
 ControllerBase::Candidate LPDDRControllerBase::select_normal_candidate() {
   Candidate cand = pick_best_ready_from(m_active_buffer, [&](const Request& req) {
-    return is_allowed_during_pending_act2(req.command, req.addr_vec);
+    return is_allowed_during_pending_act2(req.command, req.addr_vec) && can_start_act1(req);
   });
   if (!cand.valid) {
     cand = pick_priority_if([&](const Request& req) {
-      return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec);
+      return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec) &&
+             can_start_act1(req);
     });
   }
   if (!cand.valid && m_priority_buffer.size() == 0) {
     cand = pick_rw_if([&](const Request& req) {
-      return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec);
+      return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec) &&
+             can_start_act1(req);
     });
   }
+  return cand;
+}
+
+/**
+ * Select an active-buffer access whose WCK synchronization can begin now.
+ * Normal selection requires the RD/WR to be ready in the current cycle; this
+ * lookahead accepts it when CAS is ready now and the RD/WR will be ready after
+ * the CAS guard, provided the sequence cannot block a pending ACT2 deadline.
+ */
+ControllerBase::Candidate LPDDRControllerBase::pick_cas_lookahead_candidate() {
+  Candidate cand;
+  if (cas_would_block_deadline()) {
+    return cand;
+  }
+
+  auto it = m_scheduler->get_best_request(m_active_buffer, [&](const Request& req) {
+    int cmd = req.command;
+    if (!is_access_cmd(cmd) || !needs_wck_sync(cmd) ||
+        !is_allowed_during_pending_act2(cmd, req.addr_vec)) {
+      return false;
+    }
+
+    int cas = m_cmd_cas >= 0 ? m_cmd_cas : (is_read_cmd(cmd) ? m_cmd_cas_rd : m_cmd_cas_wr);
+    return check_timing(cas, req.addr_vec) &&
+           m_device.check_timing(cmd, req.addr_vec, m_clk + m_cas_deadline_guard);
+  });
+  if (it == m_active_buffer.end()) {
+    return cand;
+  }
+
+  cand.valid = true;
+  cand.it = it;
+  cand.buffer = &m_active_buffer;
   return cand;
 }
 

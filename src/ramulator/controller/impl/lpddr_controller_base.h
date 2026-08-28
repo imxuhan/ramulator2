@@ -84,8 +84,10 @@ class LPDDRControllerBase : public ControllerBase {
   bool is_cas_cmd(int cmd) const;
   bool is_allowed_during_pending_act2(int cmd, const AddrVec_t& addr_vec) const;
   bool is_owned_act2_candidate(const Request& req) const;
+  bool can_start_act1(const Request& req);
 
   Candidate select_normal_candidate();
+  Candidate pick_cas_lookahead_candidate();
   Candidate pick_urgent_act2();
   Candidate pick_deferred_act2();
 
