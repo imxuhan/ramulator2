@@ -108,8 +108,10 @@ class DDR5(DRAMStandard):
     # ---- Secondary timing resolution ----
     @classmethod
     def resolve_secondary_timings(cls, timing_dict, org_dict):
-        timing_dict["nRRDS"] = cls._resolve_nRRDS(org_dict["dq"], timing_dict["rate"])
-        timing_dict["nRRDL"] = cls._resolve_nRRDL(org_dict["dq"], timing_dict["rate"])
+        timing_dict["nRRDS"] = 8
+        timing_dict["nRRDL"] = cls._resolve_nRRDL(
+            org_dict["dq"], timing_dict["rate"], timing_dict["tCK_ps"]
+        )
         timing_dict["nFAW"] = cls._resolve_nFAW(org_dict["dq"], timing_dict["rate"])
         timing_dict["nRFC"] = cls._resolve_nRFC(org_dict["density"], timing_dict["tCK_ps"])
         timing_dict["nREFI"] = cls._resolve_nREFI(timing_dict["tCK_ps"])
@@ -128,12 +130,7 @@ class DDR5(DRAMStandard):
         timing_dict["nRTW"] = cls._resolve_nRTW(timing_dict)
 
     @staticmethod
-    def _resolve_nRRDS(dq, rate):
-        return 8
-
-    @staticmethod
-    def _resolve_nRRDL(dq, rate):
-        tCK_ps = 2_000_000 // rate
+    def _resolve_nRRDL(dq, rate, tCK_ps):
         if rate <= 6400:
             return max(8, DDR5._min_cycles(5_000, tCK_ps))
         return DDR5._resolve_nCCDM(rate, tCK_ps, -1)
@@ -245,19 +242,63 @@ DDR5.org_presets = {
 # finalized by resolve_secondary_timings().
 DDR5.timing_presets = {
     # DDR5-3200 (tCK = 625 ps)
-    "DDR5_3200AN": {"rate": 3200, "nBL": 8, "nCL": 24, "nRCD": 24, "nRP": 24, "nRAS": 52, "nRC": 76,  "nWR": 48, "nRTP": 12, "nCWL": 22, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 6,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
-    "DDR5_3200BN": {"rate": 3200, "nBL": 8, "nCL": 26, "nRCD": 26, "nRP": 26, "nRAS": 52, "nRC": 78,  "nWR": 48, "nRTP": 12, "nCWL": 24, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 6,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
-    "DDR5_3200C":  {"rate": 3200, "nBL": 8, "nCL": 28, "nRCD": 28, "nRP": 28, "nRAS": 52, "nRC": 80,  "nWR": 48, "nRTP": 12, "nCWL": 26, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 6,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
+    "DDR5_3200AN": {"rate": 3200, "nBL": 8, "nCL": 24, "nRCD": 24, "nRP": 24, "nRAS": 52, "nRC": 76,  "nWR": 48, "nRTP": 12, "nCWL": 22, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 4,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
+    "DDR5_3200B": {"rate": 3200, "nBL": 8, "nCL": 26, "nRCD": 26, "nRP": 26, "nRAS": 52, "nRC": 78, "nWR": 48, "nRTP": 12, "nCWL": 24, "nPPD": 2, "nCCDS": 8, "nCCDL": 8, "nCCDS_WR": 8, "nCCDL_WR": 32, "nWTRS": 4, "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
+    "DDR5_3200C":  {"rate": 3200, "nBL": 8, "nCL": 28, "nRCD": 28, "nRP": 28, "nRAS": 52, "nRC": 80,  "nWR": 48, "nRTP": 12, "nCWL": 26, "nPPD": 2, "nCCDS": 8,  "nCCDL": 8,  "nCCDS_WR": 8,  "nCCDL_WR": 32, "nWTRS": 4,  "nWTRL": 16, "nCS": 2, "tCK_ps": 625},
+    # DDR5-3600 (tCK = 555 ps)
+    "DDR5_3600AN": {"rate": 3600, "nBL": 8, "nCL": 26, "nRCD": 26, "nRP": 26, "nRAS": 58, "nRC": 84, "nWR": 54, "nRTP": 14, "nCWL": 24, "nPPD": 2, "nCCDS": 8, "nCCDL": 9, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 5, "nWTRL": 18, "nCS": 2, "tCK_ps": 555},
+    "DDR5_3600B": {"rate": 3600, "nBL": 8, "nCL": 30, "nRCD": 30, "nRP": 30, "nRAS": 58, "nRC": 88, "nWR": 54, "nRTP": 14, "nCWL": 28, "nPPD": 2, "nCCDS": 8, "nCCDL": 9, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 5, "nWTRL": 18, "nCS": 2, "tCK_ps": 555},
+    "DDR5_3600C": {"rate": 3600, "nBL": 8, "nCL": 32, "nRCD": 32, "nRP": 32, "nRAS": 58, "nRC": 90, "nWR": 54, "nRTP": 14, "nCWL": 30, "nPPD": 2, "nCCDS": 8, "nCCDL": 9, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 5, "nWTRL": 18, "nCS": 2, "tCK_ps": 555},
+    # DDR5-4000 (tCK = 500 ps)
+    "DDR5_4000AN": {"rate": 4000, "nBL": 8, "nCL": 28, "nRCD": 28, "nRP": 28, "nRAS": 64, "nRC": 92, "nWR": 60, "nRTP": 15, "nCWL": 26, "nPPD": 2, "nCCDS": 8, "nCCDL": 10, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 5, "nWTRL": 20, "nCS": 2, "tCK_ps": 500},
+    "DDR5_4000B": {"rate": 4000, "nBL": 8, "nCL": 32, "nRCD": 32, "nRP": 32, "nRAS": 64, "nRC": 96, "nWR": 60, "nRTP": 15, "nCWL": 30, "nPPD": 2, "nCCDS": 8, "nCCDL": 10, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 5, "nWTRL": 20, "nCS": 2, "tCK_ps": 500},
+    "DDR5_4000C": {"rate": 4000, "nBL": 8, "nCL": 36, "nRCD": 35, "nRP": 35, "nRAS": 64, "nRC": 99, "nWR": 60, "nRTP": 15, "nCWL": 34, "nPPD": 2, "nCCDS": 8, "nCCDL": 10, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 5, "nWTRL": 20, "nCS": 2, "tCK_ps": 500},
+    # DDR5-4400 (tCK = 454 ps)
+    "DDR5_4400AN": {"rate": 4400, "nBL": 8, "nCL": 32, "nRCD": 32, "nRP": 32, "nRAS": 71, "nRC": 103, "nWR": 66, "nRTP": 17, "nCWL": 30, "nPPD": 2, "nCCDS": 8, "nCCDL": 11, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 6, "nWTRL": 22, "nCS": 2, "tCK_ps": 454},
+    "DDR5_4400B": {"rate": 4400, "nBL": 8, "nCL": 36, "nRCD": 36, "nRP": 36, "nRAS": 71, "nRC": 107, "nWR": 66, "nRTP": 17, "nCWL": 34, "nPPD": 2, "nCCDS": 8, "nCCDL": 11, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 6, "nWTRL": 22, "nCS": 2, "tCK_ps": 454},
+    "DDR5_4400C": {"rate": 4400, "nBL": 8, "nCL": 40, "nRCD": 39, "nRP": 39, "nRAS": 71, "nRC": 110, "nWR": 66, "nRTP": 17, "nCWL": 38, "nPPD": 2, "nCCDS": 8, "nCCDL": 11, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 6, "nWTRL": 22, "nCS": 2, "tCK_ps": 454},
     # DDR5-4800 (tCK = 416 ps)
     "DDR5_4800AN": {"rate": 4800, "nBL": 8, "nCL": 34, "nRCD": 34, "nRP": 34, "nRAS": 77, "nRC": 111, "nWR": 72, "nRTP": 18, "nCWL": 32, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 48, "nWTRS": 6,  "nWTRL": 24, "nCS": 2, "tCK_ps": 416},
-    "DDR5_4800BN": {"rate": 4800, "nBL": 8, "nCL": 36, "nRCD": 36, "nRP": 36, "nRAS": 77, "nRC": 113, "nWR": 72, "nRTP": 18, "nCWL": 34, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 48, "nWTRS": 6,  "nWTRL": 24, "nCS": 2, "tCK_ps": 416},
-    "DDR5_4800C":  {"rate": 4800, "nBL": 8, "nCL": 38, "nRCD": 38, "nRP": 38, "nRAS": 77, "nRC": 115, "nWR": 72, "nRTP": 18, "nCWL": 36, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 48, "nWTRS": 6,  "nWTRL": 24, "nCS": 2, "tCK_ps": 416},
+    "DDR5_4800B": {"rate": 4800, "nBL": 8, "nCL": 40, "nRCD": 39, "nRP": 39, "nRAS": 77, "nRC": 116, "nWR": 72, "nRTP": 18, "nCWL": 38, "nPPD": 2, "nCCDS": 8, "nCCDL": 12, "nCCDS_WR": 8, "nCCDL_WR": 48, "nWTRS": 6, "nWTRL": 24, "nCS": 2, "tCK_ps": 416},
+    "DDR5_4800C":  {"rate": 4800, "nBL": 8, "nCL": 42, "nRCD": 42, "nRP": 42, "nRAS": 77, "nRC": 119, "nWR": 72, "nRTP": 18, "nCWL": 40, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 48, "nWTRS": 6,  "nWTRL": 24, "nCS": 2, "tCK_ps": 416},
+    # DDR5-5200 (tCK = 384 ps)
+    "DDR5_5200AN": {"rate": 5200, "nBL": 8, "nCL": 38, "nRCD": 38, "nRP": 38, "nRAS": 84, "nRC": 122, "nWR": 78, "nRTP": 20, "nCWL": 36, "nPPD": 2, "nCCDS": 8, "nCCDL": 13, "nCCDS_WR": 8, "nCCDL_WR": 52, "nWTRS": 7, "nWTRL": 26, "nCS": 2, "tCK_ps": 384},
+    "DDR5_5200B": {"rate": 5200, "nBL": 8, "nCL": 42, "nRCD": 42, "nRP": 42, "nRAS": 84, "nRC": 126, "nWR": 78, "nRTP": 20, "nCWL": 40, "nPPD": 2, "nCCDS": 8, "nCCDL": 13, "nCCDS_WR": 8, "nCCDL_WR": 52, "nWTRS": 7, "nWTRL": 26, "nCS": 2, "tCK_ps": 384},
+    "DDR5_5200C": {"rate": 5200, "nBL": 8, "nCL": 46, "nRCD": 46, "nRP": 46, "nRAS": 84, "nRC": 130, "nWR": 78, "nRTP": 20, "nCWL": 44, "nPPD": 2, "nCCDS": 8, "nCCDL": 13, "nCCDS_WR": 8, "nCCDL_WR": 52, "nWTRS": 7, "nWTRL": 26, "nCS": 2, "tCK_ps": 384},
     # DDR5-5600 (tCK = 357 ps)
-    "DDR5_5600AN": {"rate": 5600, "nBL": 8, "nCL": 40, "nRCD": 40, "nRP": 40, "nRAS": 90, "nRC": 130, "nWR": 84, "nRTP": 20, "nCWL": 38, "nPPD": 2, "nCCDS": 8,  "nCCDL": 12, "nCCDS_WR": 8,  "nCCDL_WR": 56, "nWTRS": 5,  "nWTRL": 28, "nCS": 2, "tCK_ps": 357},
+    "DDR5_5600AN": {"rate": 5600, "nBL": 8, "nCL": 40, "nRCD": 40, "nRP": 40, "nRAS": 90, "nRC": 130, "nWR": 84, "nRTP": 21, "nCWL": 38, "nPPD": 2, "nCCDS": 8,  "nCCDL": 14, "nCCDS_WR": 8,  "nCCDL_WR": 56, "nWTRS": 7,  "nWTRL": 28, "nCS": 2, "tCK_ps": 357},
+    "DDR5_5600B": {"rate": 5600, "nBL": 8, "nCL": 46, "nRCD": 45, "nRP": 45, "nRAS": 90, "nRC": 135, "nWR": 84, "nRTP": 21, "nCWL": 44, "nPPD": 2, "nCCDS": 8, "nCCDL": 14, "nCCDS_WR": 8, "nCCDL_WR": 56, "nWTRS": 7, "nWTRL": 28, "nCS": 2, "tCK_ps": 357},
+    "DDR5_5600C": {"rate": 5600, "nBL": 8, "nCL": 50, "nRCD": 49, "nRP": 49, "nRAS": 90, "nRC": 139, "nWR": 84, "nRTP": 21, "nCWL": 48, "nPPD": 2, "nCCDS": 8, "nCCDL": 14, "nCCDS_WR": 8, "nCCDL_WR": 56, "nWTRS": 7, "nWTRL": 28, "nCS": 2, "tCK_ps": 357},
+    # DDR5-6000 (tCK = 333 ps)
+    "DDR5_6000AN": {"rate": 6000, "nBL": 8, "nCL": 42, "nRCD": 42, "nRP": 42, "nRAS": 96, "nRC": 138, "nWR": 90, "nRTP": 23, "nCWL": 40, "nPPD": 2, "nCCDS": 8, "nCCDL": 15, "nCCDS_WR": 8, "nCCDL_WR": 60, "nWTRS": 8, "nWTRL": 30, "nCS": 2, "tCK_ps": 333},
+    "DDR5_6000B": {"rate": 6000, "nBL": 8, "nCL": 48, "nRCD": 48, "nRP": 48, "nRAS": 96, "nRC": 144, "nWR": 90, "nRTP": 23, "nCWL": 46, "nPPD": 2, "nCCDS": 8, "nCCDL": 15, "nCCDS_WR": 8, "nCCDL_WR": 60, "nWTRS": 8, "nWTRL": 30, "nCS": 2, "tCK_ps": 333},
+    "DDR5_6000C": {"rate": 6000, "nBL": 8, "nCL": 54, "nRCD": 53, "nRP": 53, "nRAS": 96, "nRC": 149, "nWR": 90, "nRTP": 23, "nCWL": 52, "nPPD": 2, "nCCDS": 8, "nCCDL": 15, "nCCDS_WR": 8, "nCCDL_WR": 60, "nWTRS": 8, "nWTRL": 30, "nCS": 2, "tCK_ps": 333},
     # DDR5-6400 (tCK = 312 ps)
-    "DDR5_6400AN": {"rate": 6400, "nBL": 8, "nCL": 46, "nRCD": 46, "nRP": 46, "nRAS": 103, "nRC": 149, "nWR": 96, "nRTP": 24, "nCWL": 44, "nPPD": 2, "nCCDS": 8,  "nCCDL": 16, "nCCDS_WR": 8,  "nCCDL_WR": 64, "nWTRS": 5,  "nWTRL": 32, "nCS": 2, "tCK_ps": 312},
+    "DDR5_6400AN": {"rate": 6400, "nBL": 8, "nCL": 46, "nRCD": 46, "nRP": 46, "nRAS": 103, "nRC": 149, "nWR": 96, "nRTP": 24, "nCWL": 44, "nPPD": 2, "nCCDS": 8,  "nCCDL": 16, "nCCDS_WR": 8,  "nCCDL_WR": 64, "nWTRS": 8,  "nWTRL": 32, "nCS": 2, "tCK_ps": 312},
+    "DDR5_6400B": {"rate": 6400, "nBL": 8, "nCL": 52, "nRCD": 52, "nRP": 52, "nRAS": 103, "nRC": 155, "nWR": 96, "nRTP": 24, "nCWL": 50, "nPPD": 2, "nCCDS": 8, "nCCDL": 16, "nCCDS_WR": 8, "nCCDL_WR": 64, "nWTRS": 8, "nWTRL": 32, "nCS": 2, "tCK_ps": 312},
+    "DDR5_6400C": {"rate": 6400, "nBL": 8, "nCL": 56, "nRCD": 56, "nRP": 56, "nRAS": 103, "nRC": 159, "nWR": 96, "nRTP": 24, "nCWL": 54, "nPPD": 2, "nCCDS": 8, "nCCDL": 16, "nCCDS_WR": 8, "nCCDL_WR": 64, "nWTRS": 8, "nWTRL": 32, "nCS": 2, "tCK_ps": 312},
+    # DDR5-6800 (tCK = 294 ps)
+    "DDR5_6800AN": {"rate": 6800, "nBL": 8, "nCL": 48, "nRCD": 48, "nRP": 48, "nRAS": 109, "nRC": 157, "nWR": 102, "nRTP": 26, "nCWL": 46, "nPPD": 2, "nCCDS": 8, "nCCDL": 17, "nCCDS_WR": 8, "nCCDL_WR": 34, "nWTRS": 8, "nWTRL": 34, "nCS": 2, "tCK_ps": 294},
+    "DDR5_6800B": {"rate": 6800, "nBL": 8, "nCL": 56, "nRCD": 55, "nRP": 55, "nRAS": 109, "nRC": 164, "nWR": 102, "nRTP": 26, "nCWL": 54, "nPPD": 2, "nCCDS": 8, "nCCDL": 17, "nCCDS_WR": 8, "nCCDL_WR": 34, "nWTRS": 8, "nWTRL": 34, "nCS": 2, "tCK_ps": 294},
+    "DDR5_6800C": {"rate": 6800, "nBL": 8, "nCL": 60, "nRCD": 60, "nRP": 60, "nRAS": 109, "nRC": 169, "nWR": 102, "nRTP": 26, "nCWL": 58, "nPPD": 2, "nCCDS": 8, "nCCDL": 17, "nCCDS_WR": 8, "nCCDL_WR": 34, "nWTRS": 8, "nWTRL": 34, "nCS": 2, "tCK_ps": 294},
+    # DDR5-7200 (tCK = 277 ps)
+    "DDR5_7200AN": {"rate": 7200, "nBL": 8, "nCL": 52, "nRCD": 52, "nRP": 52, "nRAS": 116, "nRC": 168, "nWR": 108, "nRTP": 27, "nCWL": 50, "nPPD": 2, "nCCDS": 8, "nCCDL": 18, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 8, "nWTRL": 36, "nCS": 2, "tCK_ps": 277},
+    "DDR5_7200B": {"rate": 7200, "nBL": 8, "nCL": 58, "nRCD": 58, "nRP": 58, "nRAS": 116, "nRC": 174, "nWR": 108, "nRTP": 27, "nCWL": 56, "nPPD": 2, "nCCDS": 8, "nCCDL": 18, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 8, "nWTRL": 36, "nCS": 2, "tCK_ps": 277},
+    "DDR5_7200C": {"rate": 7200, "nBL": 8, "nCL": 64, "nRCD": 63, "nRP": 63, "nRAS": 116, "nRC": 179, "nWR": 108, "nRTP": 27, "nCWL": 62, "nPPD": 2, "nCCDS": 8, "nCCDL": 18, "nCCDS_WR": 8, "nCCDL_WR": 36, "nWTRS": 8, "nWTRL": 36, "nCS": 2, "tCK_ps": 277},
+    # DDR5-7600 (tCK = 263 ps)
+    "DDR5_7600AN": {"rate": 7600, "nBL": 8, "nCL": 54, "nRCD": 54, "nRP": 54, "nRAS": 122, "nRC": 176, "nWR": 114, "nRTP": 29, "nCWL": 52, "nPPD": 4, "nCCDS": 8, "nCCDL": 19, "nCCDS_WR": 8, "nCCDL_WR": 38, "nWTRS": 8, "nWTRL": 38, "nCS": 2, "tCK_ps": 263},
+    "DDR5_7600B": {"rate": 7600, "nBL": 8, "nCL": 62, "nRCD": 61, "nRP": 61, "nRAS": 122, "nRC": 183, "nWR": 114, "nRTP": 29, "nCWL": 60, "nPPD": 4, "nCCDS": 8, "nCCDL": 19, "nCCDS_WR": 8, "nCCDL_WR": 38, "nWTRS": 8, "nWTRL": 38, "nCS": 2, "tCK_ps": 263},
+    "DDR5_7600C": {"rate": 7600, "nBL": 8, "nCL": 68, "nRCD": 67, "nRP": 67, "nRAS": 122, "nRC": 189, "nWR": 114, "nRTP": 29, "nCWL": 66, "nPPD": 4, "nCCDS": 8, "nCCDL": 19, "nCCDS_WR": 8, "nCCDL_WR": 38, "nWTRS": 8, "nWTRL": 38, "nCS": 2, "tCK_ps": 263},
+    # DDR5-8000 (tCK = 250 ps)
+    "DDR5_8000AN": {"rate": 8000, "nBL": 8, "nCL": 56, "nRCD": 56, "nRP": 56, "nRAS": 128, "nRC": 184, "nWR": 120, "nRTP": 30, "nCWL": 54, "nPPD": 4, "nCCDS": 8, "nCCDL": 20, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 8, "nWTRL": 40, "nCS": 2, "tCK_ps": 250},
+    "DDR5_8000B": {"rate": 8000, "nBL": 8, "nCL": 64, "nRCD": 64, "nRP": 64, "nRAS": 128, "nRC": 192, "nWR": 120, "nRTP": 30, "nCWL": 62, "nPPD": 4, "nCCDS": 8, "nCCDL": 20, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 8, "nWTRL": 40, "nCS": 2, "tCK_ps": 250},
+    "DDR5_8000C": {"rate": 8000, "nBL": 8, "nCL": 70, "nRCD": 70, "nRP": 70, "nRAS": 128, "nRC": 198, "nWR": 120, "nRTP": 30, "nCWL": 68, "nPPD": 4, "nCCDS": 8, "nCCDL": 20, "nCCDS_WR": 8, "nCCDL_WR": 40, "nWTRS": 8, "nWTRL": 40, "nCS": 2, "tCK_ps": 250},
     # DDR5-8400 (tCK = 238 ps), JESD79-5C Table 294
     "DDR5_8400AN": {"rate": 8400, "nBL": 8, "nCL": 60, "nRCD": 60, "nRP": 60, "nRAS": 135, "nRC": 195, "nWR": 126, "nRTP": 32, "nCWL": 58, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
     "DDR5_8400B":  {"rate": 8400, "nBL": 8, "nCL": 68, "nRCD": 68, "nRP": 68, "nRAS": 135, "nRC": 203, "nWR": 126, "nRTP": 32, "nCWL": 66, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
     "DDR5_8400C":  {"rate": 8400, "nBL": 8, "nCL": 74, "nRCD": 74, "nRP": 74, "nRAS": 135, "nRC": 209, "nWR": 126, "nRTP": 32, "nCWL": 72, "nPPD": 4, "nCCDS": 8, "nCCDL": 21, "nCCDS_WR": 8, "nCCDL_WR": 42, "nWTRS": 8, "nWTRL": 42, "nCS": 2, "tCK_ps": 238},
+    # DDR5-8800 (tCK = 227 ps)
+    "DDR5_8800AN": {"rate": 8800, "nBL": 8, "nCL": 62, "nRCD": 62, "nRP": 62, "nRAS": 141, "nRC": 203, "nWR": 132, "nRTP": 33, "nCWL": 60, "nPPD": 4, "nCCDS": 8, "nCCDL": 22, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 8, "nWTRL": 44, "nCS": 2, "tCK_ps": 227},
+    "DDR5_8800B": {"rate": 8800, "nBL": 8, "nCL": 72, "nRCD": 71, "nRP": 71, "nRAS": 141, "nRC": 212, "nWR": 132, "nRTP": 33, "nCWL": 70, "nPPD": 4, "nCCDS": 8, "nCCDL": 22, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 8, "nWTRL": 44, "nCS": 2, "tCK_ps": 227},
+    "DDR5_8800C": {"rate": 8800, "nBL": 8, "nCL": 78, "nRCD": 77, "nRP": 77, "nRAS": 141, "nRC": 218, "nWR": 132, "nRTP": 33, "nCWL": 76, "nPPD": 4, "nCCDS": 8, "nCCDL": 22, "nCCDS_WR": 8, "nCCDL_WR": 44, "nWTRS": 8, "nWTRL": 44, "nCS": 2, "tCK_ps": 227},
 }
