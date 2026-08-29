@@ -11,7 +11,12 @@ frontend = ramulator.frontend.SimpleO3(
 )
 
 # Create DRAM configuration
-ddr4 = ramulator.dram.DDR4(org_preset="DDR4_8Gb_x8", timing_preset="DDR4_2400R", rank=1)
+ddr4 = ramulator.dram.DDR4(
+    org_preset="DDR4_8Gb_x8",
+    timing_preset="DDR4_2400R",
+    rank=1,
+    verbose=True,   # This prints the final timing constraints
+)
 # Instantiate the memory controller with the DRAM configuation
 ctrl = ramulator.controller.GenericDDR(
     dram=ddr4,

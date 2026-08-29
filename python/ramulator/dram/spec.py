@@ -21,6 +21,7 @@ Example:
 """
 
 import re
+import sys
 
 from ramulator.components import Component
 from ramulator.param import Param
@@ -98,9 +99,11 @@ class DRAMStandard(Component):
         if isinstance(getattr(cls, "name", None), str):
             DRAMStandard._registry[cls.name] = cls
 
-    def __init__(self, *, org_preset, timing_preset, **overrides):
+    def __init__(self, *, org_preset, timing_preset, verbose=False, **overrides):
         super().__init__(org_preset=org_preset, timing_preset=timing_preset)
         self._overrides = overrides
+        self._verbose = verbose
+        self._verbose_printed = False
 
     @classmethod
     def resolve_secondary_timings(cls, timing_dict, org_dict):
@@ -171,6 +174,10 @@ class DRAMStandard(Component):
             raise ValueError(f"{cls.name}: channel_width ({cw}) must be a multiple of dq ({dq})")
         if cls.data_payload_bytes is not None and cls.data_payload_bytes <= 0:
             raise ValueError(f"{cls.name}: data_payload_bytes must be positive, got {cls.data_payload_bytes}")
+
+        verbose_timing_dict = None
+        if self._verbose and not self._verbose_printed:
+            verbose_timing_dict = dict(timing_dict)
 
         # ---- Single-place CK → tick conversion ----
         # All Python-facing values (presets, command_cycles, constraint
@@ -256,7 +263,38 @@ class DRAMStandard(Component):
         }
         if cls.data_payload_bytes is not None:
             config["data_payload_bytes"] = cls.data_payload_bytes
+        if verbose_timing_dict is not None:
+            print(self._format_final_timings(verbose_timing_dict), file=sys.stderr)
+            self._verbose_printed = True
         return config
+
+    def _format_final_timings(self, timing_dict):
+        cls = type(self)
+        timing_names = [name for name in cls.timing_params if name not in {"rate", "tCK_ps"}]
+        label_width = max(
+            [len("org_preset"), len("timing_preset"), len("rate"), len("tCK_ps")]
+            + [len(name) for name in timing_names]
+        )
+        cycle_values = {name: str(timing_dict[name]) for name in timing_names}
+        cycle_width = max(len(value) for value in cycle_values.values())
+        tCK_ps = timing_dict["tCK_ps"]
+
+        lines = [
+            f"[Ramulator::{cls.name}] Final timings",
+            f"  {'org_preset':<{label_width}} = {self.org_preset}",
+            f"  {'timing_preset':<{label_width}} = {self.timing_preset}",
+            f"  {'rate':<{label_width}} = {timing_dict['rate']} MT/s",
+            f"  {'tCK_ps':<{label_width}} = {tCK_ps} ps | {tCK_ps / 1000:.3f} ns",
+            "",
+        ]
+        for name in timing_names:
+            cycles = timing_dict[name]
+            time_ns = cycles * tCK_ps / 1000
+            lines.append(
+                f"  {name:<{label_width}} = {cycle_values[name]:>{cycle_width}} nCK | "
+                f"{time_ns:>10.3f} ns"
+            )
+        return "\n".join(lines)
 
     @classmethod
     def _generate_bus_constraints(cls, cmd_idx, cmd_cycles, tick_mult):
