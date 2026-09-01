@@ -79,6 +79,8 @@ def test_m4_two_ba_coloring_keeps_reliable_pages_out_and_is_pair_stable(tmp_path
     first = baseline.stats["frontend"]["translation"]
     second = lethe.stats["frontend"]["translation"]
     assert first["mapping_digest"] == second["mapping_digest"]
+    assert isinstance(first["mapping_digest"], int)
+    assert 0 <= first["mapping_digest"] < 1 << 63
     assert first["pages_borrowed"] == second["pages_borrowed"] == 0
     assert first["pages_tolerant"] > 0
     assert first["pages_reliable"] > 0

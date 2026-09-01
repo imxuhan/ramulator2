@@ -199,6 +199,10 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
           (static_cast<uint64_t>(static_cast<uint32_t>(req.source_id)) << 56) ^
           mix64(virtual_page) ^ mix64(physical_page + 0x9e3779b97f4a7c15ULL);
       s_mapping_digest ^= static_cast<size_t>(mix64(digest_input));
+      // ConfigNode's Python bridge preserves signed 64-bit integers exactly.
+      // Keep the order-independent digest below that boundary rather than
+      // allowing an unsigned value to be converted to a JSON float.
+      s_mapping_digest &= static_cast<size_t>(0x7fffffffffffffffULL);
     }
     req.addr = static_cast<Addr_t>(found->second) * m_page_size + page_offset;
     return true;
