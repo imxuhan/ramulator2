@@ -65,7 +65,9 @@ class IMemorySystem : public TopLevel<IMemorySystem> {
 
   // Returns the number of bytes per DRAM transaction (channel_width * internal_prefetch / 8).
   virtual int get_tx_bytes() = 0;
-  virtual bool is_idle() const = 0;
+  // Frontends that need a drain barrier can query this. Implementations that
+  // cannot expose queue state conservatively report non-idle.
+  virtual bool is_idle() const { return false; }
 };
 
 }  // namespace Ramulator
