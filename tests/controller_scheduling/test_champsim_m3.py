@@ -88,6 +88,7 @@ def make_simulation(traces, *, mode="standard", expected_insts=64):
         refresh_manager=refresh_manager,
         row_policy=ramulator.row_policy.Open(),
         addr_mapper=ramulator.addr_mapper.RoBaRaCoCh(),
+        tolerant_cores=[0, 1],
         wck_sync_mode="always_on",
         refdb_mode=mode,
     )
@@ -139,6 +140,10 @@ def test_four_core_pilot_modes_report_latency_and_refresh_occupancy(tmp_path, mo
     assert controller["refdb_bank_busy_cycles"] > 0
     assert all(controller[f"avg_read_latency_core_{core}"] > 0 for core in range(4))
     assert all(controller[f"p99_read_latency_core_{core}"] > 0 for core in range(4))
+    assert controller["tolerant_avg_read_latency"] > 0
+    assert controller["tolerant_p99_read_latency"] > 0
+    assert controller["reliable_avg_read_latency"] > 0
+    assert controller["reliable_p99_read_latency"] > 0
 
 
 def test_champsim_frontend_rejects_truncated_record(tmp_path):

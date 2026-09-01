@@ -22,6 +22,13 @@ class LPDDR6Controller final : public LPDDRControllerBase {
   void init() override {
     LPDDRControllerBase::init();
 
+    RAMULATOR_PARSE_PARAM(m_tolerant_cores, std::vector<int>, "tolerant_cores").default_val({});
+    for (int core : m_tolerant_cores) {
+      if (core < 0 || !m_tolerant_core_set.insert(core).second) {
+        throw std::runtime_error("LPDDR6 tolerant_cores must contain unique non-negative ids");
+      }
+    }
+
     const auto& spec = *m_device.m_spec;
     m_cmd_act1 = spec.get_command_id("ACT1");
     m_cmd_act2 = spec.get_command_id("ACT2");

@@ -64,7 +64,6 @@ void ControllerBase::init_base() {
   RAMULATOR_PARSE_PARAM(m_write_buffer_size, int, "write_buffer_size").default_val(32);
   // 1568 = 49 banks (4 BG × 4 banks × ~3 ranks) × 32 entries — large enough for all-bank refresh
   RAMULATOR_PARSE_PARAM(m_priority_buffer_size, int, "priority_buffer_size").default_val(1568);
-
   m_read_buffer.max_size = m_read_buffer_size;
   m_write_buffer.max_size = m_write_buffer_size;
   m_priority_buffer.max_size = m_priority_buffer_size;
@@ -106,6 +105,11 @@ void ControllerBase::setup_base(IFrontEnd* frontend, IMemorySystem* memory_syste
   s_avg_read_latency_per_core.resize(m_num_cores, 0);
   s_p99_read_latency_per_core.resize(m_num_cores, 0);
   m_read_latency_histogram_per_core.resize(m_num_cores);
+  for (int core : m_tolerant_cores) {
+    if (core >= static_cast<int>(m_num_cores)) {
+      throw std::runtime_error("controller tolerant_cores contains an id outside the frontend core count");
+    }
+  }
 
   m_stats.add("cycles", m_measured_clk);
   m_stats.add("row_hits", s_row_hits);
@@ -147,6 +151,14 @@ void ControllerBase::setup_base(IFrontEnd* frontend, IMemorySystem* memory_syste
 
   m_stats.add("read_latency", s_read_latency);
   m_stats.add("avg_read_latency", s_avg_read_latency);
+  m_stats.add("tolerant_demand_reads_served", s_class_demand_reads_served[0]);
+  m_stats.add("tolerant_read_latency", s_class_read_latency[0]);
+  m_stats.add("tolerant_avg_read_latency", s_class_avg_read_latency[0]);
+  m_stats.add("tolerant_p99_read_latency", s_class_p99_read_latency[0]);
+  m_stats.add("reliable_demand_reads_served", s_class_demand_reads_served[1]);
+  m_stats.add("reliable_read_latency", s_class_read_latency[1]);
+  m_stats.add("reliable_avg_read_latency", s_class_avg_read_latency[1]);
+  m_stats.add("reliable_p99_read_latency", s_class_p99_read_latency[1]);
 
   m_stats.add("read_throughput_MBps", s_read_throughput_MBps);
   m_stats.add("write_throughput_MBps", s_write_throughput_MBps);
@@ -421,6 +433,10 @@ void ControllerBase::serve_completed_reads() {
       s_demand_reads_served_per_core.at(core)++;
       s_read_latency_per_core.at(core) += latency;
       m_read_latency_histogram_per_core.at(core)[latency]++;
+      size_t request_class = m_tolerant_core_set.count(req.source_id) != 0 ? 0 : 1;
+      s_class_demand_reads_served.at(request_class)++;
+      s_class_read_latency.at(request_class) += latency;
+      m_class_read_latency_histogram.at(request_class)[latency]++;
     }
     if (req.callback) {
       req.callback(req);
@@ -455,6 +471,23 @@ void ControllerBase::update_stats() {
         cumulative += occurrences;
         if (cumulative >= target) {
           s_p99_read_latency_per_core.at(core) = static_cast<size_t>(latency);
+          break;
+        }
+      }
+    }
+  }
+  for (size_t request_class = 0; request_class < 2; request_class++) {
+    size_t count = s_class_demand_reads_served.at(request_class);
+    s_class_avg_read_latency.at(request_class) =
+        count > 0 ? static_cast<float>(s_class_read_latency.at(request_class)) / static_cast<float>(count) : 0;
+    s_class_p99_read_latency.at(request_class) = 0;
+    if (count > 0) {
+      size_t target = (count * 99 + 99) / 100;
+      size_t cumulative = 0;
+      for (const auto& [latency, occurrences] : m_class_read_latency_histogram.at(request_class)) {
+        cumulative += occurrences;
+        if (cumulative >= target) {
+          s_class_p99_read_latency.at(request_class) = static_cast<size_t>(latency);
           break;
         }
       }
@@ -498,6 +531,13 @@ void ControllerBase::reset_stats() {
   std::fill(s_avg_read_latency_per_core.begin(), s_avg_read_latency_per_core.end(), 0);
   std::fill(s_p99_read_latency_per_core.begin(), s_p99_read_latency_per_core.end(), 0);
   for (auto& histogram : m_read_latency_histogram_per_core) {
+    histogram.clear();
+  }
+  s_class_demand_reads_served.fill(0);
+  s_class_read_latency.fill(0);
+  s_class_avg_read_latency.fill(0);
+  s_class_p99_read_latency.fill(0);
+  for (auto& histogram : m_class_read_latency_histogram) {
     histogram.clear();
   }
 
