@@ -27,7 +27,11 @@ class SimpleO3LLC {
   using CacheSet_t = std::list<Line>;  // LRU queue for the set. The head of the list is the least-recently-used way.
   std::unordered_map<int, CacheSet_t> m_cache_sets;
 
-  using MSHREntry_t = std::pair<Addr_t, CacheSet_t::iterator>;
+  struct MSHREntry_t {
+    Addr_t line_addr = -1;
+    CacheSet_t::iterator line;
+    int pending_transactions = 0;
+  };
   using MSHR_t = std::vector<MSHREntry_t>;
   MSHR_t m_mshrs;
   std::unordered_map<Addr_t, std::vector<Request>> m_receive_requests;
@@ -71,7 +75,9 @@ class SimpleO3LLC {
 
   void tick();
   bool send(Request& req);
-  void receive(Request& req);
+  // Returns true when the whole cache line has arrived. A cache line may span
+  // multiple DRAM transactions (LPDDR6 uses 32 B payloads for a 64 B line).
+  bool receive(Request& req);
 
   void serialize(std::string serialization_filename);
   void deserialize(std::string serialization_filename);
@@ -87,6 +93,9 @@ class SimpleO3LLC {
   Addr_t align(Addr_t addr) {
     return (addr & ~(m_linesize_bytes - 1l));
   };
+
+  int memory_transactions_per_line() const;
+  void enqueue_line_transactions(const Request& req, int type_id, Clk_t ready_clk);
 
   CacheSet_t& get_set(Addr_t addr);
   CacheSet_t::iterator allocate_line(CacheSet_t& set, Addr_t addr);

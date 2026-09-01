@@ -101,8 +101,10 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
   }
 
   void receive(Request& req) {
-    m_llc->receive(req);
-    auto& waiting = m_llc->m_receive_requests[req.addr];
+    if (!m_llc->receive(req)) {
+      return;
+    }
+    auto& waiting = m_llc->m_receive_requests[m_llc->align(req.addr)];
     for (auto& original : waiting) {
       if (original.source_id >= 0 && original.source_id < static_cast<int>(m_cores.size())) {
         m_cores.at(original.source_id)->receive(original);

@@ -102,15 +102,18 @@ class SimpleO3 final : public IFrontEnd, public Implementation {
   }
 
   void receive(Request& req) {
-    m_llc->receive(req);
+    if (!m_llc->receive(req)) {
+      return;
+    }
 
     // Completed LLC requests are returned to their source cores.
-    for (auto r : m_llc->m_receive_requests[req.addr]) {
+    auto line_addr = m_llc->align(req.addr);
+    for (auto r : m_llc->m_receive_requests[line_addr]) {
       r.arrive = req.arrive;
       r.depart = req.depart;
       m_cores[r.source_id]->receive(r);
     }
-    m_llc->m_receive_requests[req.addr].clear();
+    m_llc->m_receive_requests[line_addr].clear();
   };
 
   bool is_finished() override {

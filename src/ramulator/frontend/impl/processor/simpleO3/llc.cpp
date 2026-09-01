@@ -47,7 +47,7 @@ void SimpleO3LLC::tick() {
   while (it != m_hit_list.end()) {
     if (m_clk >= it->first) {
       std::vector<Request> _req_v{it->second};
-      m_receive_requests[it->second.addr] = _req_v;
+      m_receive_requests[align(it->second.addr)] = _req_v;
 
       it->second.callback(it->second);
       it = m_hit_list.erase(it);
@@ -100,9 +100,9 @@ bool SimpleO3LLC::send(Request& req) {
     if (mshr_it != m_mshrs.end()) {
       DEBUG_LOG(m_logger, "MSHR Hit.", m_clk);
       // Add new req to MSHR_requests
-      m_receive_requests[mshr_it->first].push_back(req);
+      m_receive_requests[mshr_it->line_addr].push_back(req);
 
-      mshr_it->second->dirty = dirty || mshr_it->second->dirty;
+      mshr_it->line->dirty = dirty || mshr_it->line->dirty;
       return true;
     }
 
@@ -138,30 +138,58 @@ bool SimpleO3LLC::send(Request& req) {
     newline_it->dirty = dirty;
 
     // Add to MSHR entries
-    m_mshrs.push_back(std::make_pair(req.addr, newline_it));
+    int transaction_count = memory_transactions_per_line();
+    m_mshrs.push_back({align(req.addr), newline_it, transaction_count});
     // Add Request to MSHR_requests
     std::vector<Request> _req_v{req};
-    m_receive_requests[req.addr] = _req_v;
+    m_receive_requests[align(req.addr)] = _req_v;
 
-    // Add to the miss request list
-    req.size_bytes = static_cast<int>(m_linesize_bytes);
-    m_miss_list.push_back(std::make_pair(m_clk + m_latency, req));
+    // Add one request per physical DRAM transaction. The MSHR remains locked
+    // until all transactions for this cache line return.
+    enqueue_line_transactions(req, Request::Type::Read, m_clk + m_latency);
 
     return true;
   }
 };
 
-void SimpleO3LLC::receive(Request& req) {
+bool SimpleO3LLC::receive(Request& req) {
+  Addr_t line_addr = align(req.addr);
   auto it = std::find_if(m_mshrs.begin(), m_mshrs.end(),
-                         [&req, this](MSHREntry_t mshr_entry) { return (align(mshr_entry.first) == align(req.addr)); });
+                         [line_addr](const MSHREntry_t& entry) { return entry.line_addr == line_addr; });
 
   DEBUG_LOG(m_logger, "[Clk={}] Request {} received.", m_clk, req.addr);
 
   if (it != m_mshrs.end()) {
-    it->second->ready = true;
-    m_mshrs.erase(it);
+    if (--it->pending_transactions == 0) {
+      it->line->ready = true;
+      m_mshrs.erase(it);
+      return true;
+    }
+    return false;
   }
+  // LLC hits have no MSHR and are complete when their callback fires.
+  return true;
 };
+
+int SimpleO3LLC::memory_transactions_per_line() const {
+  int tx_bytes = m_memory_system->get_tx_bytes();
+  if (tx_bytes <= 0 || m_linesize_bytes % static_cast<size_t>(tx_bytes) != 0) {
+    throw std::runtime_error("LLC line size must be a positive multiple of the DRAM transaction size");
+  }
+  return static_cast<int>(m_linesize_bytes / static_cast<size_t>(tx_bytes));
+}
+
+void SimpleO3LLC::enqueue_line_transactions(const Request& req, int type_id, Clk_t ready_clk) {
+  int tx_bytes = m_memory_system->get_tx_bytes();
+  Addr_t line_addr = align(req.addr);
+  for (int offset = 0; offset < static_cast<int>(m_linesize_bytes); offset += tx_bytes) {
+    Request transaction = req;
+    transaction.addr = line_addr + offset;
+    transaction.type_id = type_id;
+    transaction.size_bytes = tx_bytes;
+    m_miss_list.push_back(std::make_pair(ready_clk, transaction));
+  }
+}
 
 SimpleO3LLC::CacheSet_t& SimpleO3LLC::get_set(Addr_t addr) {
   int set_index = get_index(addr);
@@ -208,8 +236,7 @@ void SimpleO3LLC::evict_line(CacheSet_t& set, CacheSet_t::iterator victim_it) {
   // Generate writeback request if victim line is dirty
   if (victim_it->dirty) {
     Request writeback_req(victim_it->addr, Request::Type::Write);
-    writeback_req.size_bytes = static_cast<int>(m_linesize_bytes);
-    m_miss_list.push_back(std::make_pair(m_clk + m_latency, writeback_req));
+    enqueue_line_transactions(writeback_req, Request::Type::Write, m_clk + m_latency);
 
     DEBUG_LOG(m_logger, "Writeback Request will be issued at Clk={}.", m_clk + m_latency);
   }
@@ -227,7 +254,7 @@ SimpleO3LLC::CacheSet_t::iterator SimpleO3LLC::check_set_hit(CacheSet_t& set, Ad
 
 SimpleO3LLC::MSHR_t::iterator SimpleO3LLC::check_mshr_hit(Addr_t addr) {
   auto mshr_it = std::find_if(m_mshrs.begin(), m_mshrs.end(), [addr, this](MSHREntry_t mshr_entry) {
-    return (align(mshr_entry.first) == align(addr));
+    return mshr_entry.line_addr == align(addr);
   });
   return mshr_it;
 }
