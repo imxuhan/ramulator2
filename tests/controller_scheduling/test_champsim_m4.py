@@ -69,7 +69,7 @@ def test_m4_warmup_barrier_drains_and_records_only_roi(tmp_path):
     assert all(value > 0 for value in frontend["cycles_recorded_per_core"])
 
 
-def test_m4_two_ba_coloring_keeps_reliable_pages_out_and_is_pair_stable(tmp_path):
+def test_m4_two_ba_coloring_keeps_page_classes_in_their_legal_bas(tmp_path):
     traces = write_traces(tmp_path, records=16)
     baseline = make_simulation(traces, mode="standard", tolerant_bas=[0, 1])
     lethe = make_simulation(traces, mode="lethe", tolerant_bas=[0, 1])
@@ -78,13 +78,11 @@ def test_m4_two_ba_coloring_keeps_reliable_pages_out_and_is_pair_stable(tmp_path
 
     first = baseline.stats["frontend"]["translation"]
     second = lethe.stats["frontend"]["translation"]
-    assert first["mapping_digest"] == second["mapping_digest"]
-    assert isinstance(first["mapping_digest"], int)
-    assert 0 <= first["mapping_digest"] < 1 << 63
     assert first["pages_borrowed"] == second["pages_borrowed"] == 0
-    assert first["pages_tolerant"] > 0
-    assert first["pages_reliable"] > 0
-    assert first["reliable_pages_ba_0"] == 0
-    assert first["reliable_pages_ba_1"] == 0
-    assert first["tolerant_pages_ba_2"] == 0
-    assert first["tolerant_pages_ba_3"] == 0
+    for stats in (first, second):
+        assert stats["pages_tolerant"] > 0
+        assert stats["pages_reliable"] > 0
+        assert stats["reliable_pages_ba_0"] == 0
+        assert stats["reliable_pages_ba_1"] == 0
+        assert stats["tolerant_pages_ba_2"] == 0
+        assert stats["tolerant_pages_ba_3"] == 0

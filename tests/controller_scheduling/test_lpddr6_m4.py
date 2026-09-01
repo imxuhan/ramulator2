@@ -85,6 +85,35 @@ def test_m4_standard_and_lethe_schedules_preserve_expected_idle_rates(schedule):
     assert lethe_stats["refdb_issued"] / baseline_stats["refdb_issued"] == 0.8125
 
 
+def test_m4_darp_prefers_the_less_requested_legal_bank_pair():
+    dut = make_dut(
+        manager=ramulator.refresh_manager.LPDDR6DualBankM4(
+            refresh_multiplier=0.125, schedule="darp"
+        ),
+        mode="standard",
+    )
+    base_interval = round(dut.timing("nREFIdb") * 0.125)
+    dut.tick_many(base_interval - 1)
+    for row in range(4):
+        dut.send_request(
+            "Read", dut.addr_vec(Rank=0, BankGroup=0, Bank=0, Row=row, Column=0)
+        )
+        dut.send_request(
+            "Read", dut.addr_vec(Rank=0, BankGroup=1, Bank=0, Row=row, Column=0)
+        )
+
+    issued = []
+    for _ in range(16):
+        issued.extend(dut.tick())
+        if any(command.command == "REFdb" for command in issued):
+            break
+    refresh = next(command for command in issued if command.command == "REFdb")
+    bg_level = dut.level_names.index("BankGroup")
+    bank_level = dut.level_names.index("Bank")
+    assert {refresh.addr_vec[bg_level], refresh.secondary_addr_vec[bg_level]} == {2, 3}
+    assert refresh.addr_vec[bank_level] == refresh.secondary_addr_vec[bank_level] == 0
+
+
 def test_m4_32gb_uses_table_302_210ns_refdb_timing():
     dut = make_dut(
         manager=ramulator.refresh_manager.LPDDR6DualBankM4(),

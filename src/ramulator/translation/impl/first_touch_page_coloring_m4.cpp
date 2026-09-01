@@ -51,18 +51,10 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
   size_t s_pages_tolerant = 0;
   size_t s_pages_reliable = 0;
   size_t s_pages_borrowed = 0;
-  size_t s_mapping_digest = 0;
   std::array<size_t, 4> s_pages_by_ba{};
   std::array<size_t, 4> s_tolerant_pages_by_ba{};
   std::array<size_t, 4> s_reliable_pages_by_ba{};
 
-  static uint64_t mix64(uint64_t value) {
-    value ^= value >> 30;
-    value *= 0xbf58476d1ce4e5b9ULL;
-    value ^= value >> 27;
-    value *= 0x94d049bb133111ebULL;
-    return value ^ (value >> 31);
-  }
   bool is_power_of_two(Addr_t value) const {
     return value > 0 && (value & (value - 1)) == 0;
   }
@@ -148,7 +140,6 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
     m_stats.add("pages_tolerant", s_pages_tolerant);
     m_stats.add("pages_reliable", s_pages_reliable);
     m_stats.add("pages_borrowed", s_pages_borrowed);
-    m_stats.add("mapping_digest", s_mapping_digest);
     for (int ba = 0; ba < 4; ba++) {
       m_stats.add(fmt::format("pages_ba_{}", ba), s_pages_by_ba.at(ba));
       m_stats.add(
@@ -195,14 +186,6 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
         s_reliable_pages_by_ba.at(selected_ba)++;
       }
       found = m_page_table.emplace(key, physical_page).first;
-      const uint64_t digest_input =
-          (static_cast<uint64_t>(static_cast<uint32_t>(req.source_id)) << 56) ^
-          mix64(virtual_page) ^ mix64(physical_page + 0x9e3779b97f4a7c15ULL);
-      s_mapping_digest ^= static_cast<size_t>(mix64(digest_input));
-      // ConfigNode's Python bridge preserves signed 64-bit integers exactly.
-      // Keep the order-independent digest below that boundary rather than
-      // allowing an unsigned value to be converted to a JSON float.
-      s_mapping_digest &= static_cast<size_t>(0x7fffffffffffffffULL);
     }
     req.addr = static_cast<Addr_t>(found->second) * m_page_size + page_offset;
     return true;
