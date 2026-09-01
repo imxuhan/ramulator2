@@ -57,3 +57,25 @@ def test_refdb_rate_scales_eightfold_at_point_125x():
 
     assert one_x > 0
     assert 7.5 <= point_125x / one_x <= 8.5
+
+
+def test_refdb_consumes_two_tfaw_activation_credits():
+    dut = make_lpddr6_dut(wck_sync_mode="always_on")
+    first = dut.addr_vec(Rank=0, BankGroup=0, Bank=0, Row=0, Column=0)
+    second = dut.addr_vec(Rank=0, BankGroup=1, Bank=0, Row=0, Column=0)
+    dut.priority_send_pair("REFdb", first, second)
+    ref_history = dut.run_until_idle(max_ticks=256)
+    ref = next(item for item in ref_history if item.command == "REFdb")
+
+    for bankgroup, bank in ((2, 0), (3, 0), (2, 1)):
+        target = dut.addr_vec(
+            Rank=0, BankGroup=bankgroup, Bank=bank, Row=0, Column=0
+        )
+        dut.send_request("Read", target)
+
+    history = dut.run_until_idle(max_ticks=2048)
+    activations = [item for item in history if item.command == "ACT2"]
+
+    assert len(activations) == 3
+    assert activations[1].clk - ref.clk < dut.timing("nFAW")
+    assert activations[2].clk - ref.clk >= dut.timing("nFAW")
