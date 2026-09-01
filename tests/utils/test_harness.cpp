@@ -375,6 +375,21 @@ class ControllerUnderTestCpp {
     return issued;
   }
 
+  void tick_many(size_t cycles) {
+    for (size_t cycle = 0; cycle < cycles; cycle++) {
+      m_memory_system->tick();
+      for (const auto& rec : m_validation_hook->take_issued_commands_this_tick()) {
+        bool tracked_final = rec.command == rec.final_command &&
+                             (rec.type_id != -1 || rec.source_id == kHarnessInternalSourceId);
+        if (!tracked_final) continue;
+        if (m_command_outstanding == 0) {
+          throw std::runtime_error("ControllerUnderTest command accounting underflow");
+        }
+        m_command_outstanding--;
+      }
+    }
+  }
+
   bool is_idle() const {
     return m_command_outstanding == 0 && m_read_completions_pending == 0;
   }
@@ -469,6 +484,7 @@ NB_MODULE(_ramulator_test, m) {
       .def("priority_send_pair", &ControllerUnderTestCpp::priority_send_pair, nb::arg("command"),
            nb::arg("first"), nb::arg("second"))
       .def("tick", &ControllerUnderTestCpp::tick)
+      .def("tick_many", &ControllerUnderTestCpp::tick_many, nb::arg("cycles"))
       .def("is_idle", &ControllerUnderTestCpp::is_idle)
       .def("stats", &ControllerUnderTestCpp::stats);
 }

@@ -143,6 +143,10 @@ class ControllerUnderTest:
         self.history.extend(issued)
         return issued
 
+    def tick_many(self, cycles: int) -> None:
+        """Advance many idle cycles without crossing the Python boundary per tick."""
+        self._cpp.tick_many(cycles)
+
     def is_idle(self) -> bool:
         return self._cpp.is_idle()
 
