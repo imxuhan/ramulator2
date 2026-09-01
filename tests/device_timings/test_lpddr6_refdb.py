@@ -1,7 +1,7 @@
 import pytest
 
 import ramulator
-from tests import device_timings
+import tests.device_timings.harness as device_timings
 
 
 pytestmark = pytest.mark.device_timings
