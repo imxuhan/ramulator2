@@ -60,6 +60,7 @@ def make_simulation(traces, *, mode="standard", expected_insts=64):
         page_size=4096,
         ba_bit_offset=13,
         reduced_ba=0,
+        num_cores=4,
         tolerant_cores=[0, 1],
     )
     frontend = ramulator.frontend.ChampSimO3(

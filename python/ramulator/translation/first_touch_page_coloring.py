@@ -16,4 +16,5 @@ class FirstTouchPageColoring(Component):
     page_size = Param(int, default=4096, cpp_type="Addr_t")
     ba_bit_offset = Param(int, default=13)
     reduced_ba = Param(int, default=0)
+    num_cores = Param(int, required=True)
     tolerant_cores = Param(list, required=True, cpp_type="std::vector<int>")

@@ -38,11 +38,13 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
   Addr_t m_page_size = 4096;
   int m_ba_bit_offset = 13;
   int m_reduced_ba = 0;
+  int m_num_cores = 0;
   std::vector<int> m_tolerant_cores;
   std::unordered_set<int> m_tolerant_core_set;
   std::unordered_map<PageKey, uint64_t, PageKeyHash> m_page_table;
-  std::array<uint64_t, 4> m_next_candidate_page{};
-  size_t m_next_reliable_ba = 0;
+  uint64_t m_pages_per_core = 0;
+  std::vector<std::array<uint64_t, 4>> m_next_candidate_page;
+  std::vector<size_t> m_next_reliable_ba;
 
   size_t s_pages_tolerant = 0;
   size_t s_pages_reliable = 0;
@@ -58,13 +60,13 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
     return static_cast<int>((addr >> m_ba_bit_offset) & 0x3);
   }
 
-  bool allocate_from_ba(int ba, uint64_t& physical_page) {
-    uint64_t max_pages = static_cast<uint64_t>(m_max_paddr / m_page_size);
-    auto& candidate = m_next_candidate_page.at(ba);
-    while (candidate < max_pages && page_ba(candidate) != ba) {
+  bool allocate_from_ba(int source_id, int ba, uint64_t& physical_page) {
+    uint64_t region_end = static_cast<uint64_t>(source_id + 1) * m_pages_per_core;
+    auto& candidate = m_next_candidate_page.at(source_id).at(ba);
+    while (candidate < region_end && page_ba(candidate) != ba) {
       candidate++;
     }
-    if (candidate >= max_pages) {
+    if (candidate >= region_end) {
       return false;
     }
     physical_page = candidate++;
@@ -72,13 +74,14 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
     return true;
   }
 
-  bool allocate_reliable(uint64_t& physical_page) {
+  bool allocate_reliable(int source_id, uint64_t& physical_page) {
     for (size_t attempt = 0; attempt < 3; attempt++) {
-      int ba = static_cast<int>(m_next_reliable_ba++ % 4);
+      auto& next_ba = m_next_reliable_ba.at(source_id);
+      int ba = static_cast<int>(next_ba++ % 4);
       if (ba == m_reduced_ba) {
-        ba = static_cast<int>(m_next_reliable_ba++ % 4);
+        ba = static_cast<int>(next_ba++ % 4);
       }
-      if (ba != m_reduced_ba && allocate_from_ba(ba, physical_page)) {
+      if (ba != m_reduced_ba && allocate_from_ba(source_id, ba, physical_page)) {
         return true;
       }
     }
@@ -91,6 +94,7 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
     RAMULATOR_PARSE_PARAM(m_page_size, Addr_t, "page_size").default_val(4096);
     RAMULATOR_PARSE_PARAM(m_ba_bit_offset, int, "ba_bit_offset").default_val(13);
     RAMULATOR_PARSE_PARAM(m_reduced_ba, int, "reduced_ba").default_val(0);
+    RAMULATOR_PARSE_PARAM(m_num_cores, int, "num_cores").required();
     RAMULATOR_PARSE_PARAM(m_tolerant_cores, std::vector<int>, "tolerant_cores").required();
 
     if (!is_power_of_two(m_page_size)) {
@@ -102,13 +106,26 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
     if (m_reduced_ba < 0 || m_reduced_ba >= 4) {
       throw std::runtime_error("FirstTouchPageColoring reduced_ba must be in [0, 3]");
     }
+    if (m_num_cores <= 0) {
+      throw std::runtime_error("FirstTouchPageColoring num_cores must be positive");
+    }
+    uint64_t max_pages = static_cast<uint64_t>(m_max_paddr / m_page_size);
+    m_pages_per_core = max_pages / static_cast<uint64_t>(m_num_cores);
+    if (m_pages_per_core == 0 || max_pages % static_cast<uint64_t>(m_num_cores) != 0) {
+      throw std::runtime_error("FirstTouchPageColoring physical pages must divide evenly across cores");
+    }
+    m_next_candidate_page.resize(m_num_cores);
+    m_next_reliable_ba.resize(m_num_cores, 0);
+    for (int core = 0; core < m_num_cores; core++) {
+      m_next_candidate_page.at(core).fill(static_cast<uint64_t>(core) * m_pages_per_core);
+    }
     int page_offset_bits = calc_log2(m_page_size);
     if (m_ba_bit_offset < page_offset_bits) {
       throw std::runtime_error(
           "FirstTouchPageColoring requires the two BA bits to be outside the page offset");
     }
     for (int core : m_tolerant_cores) {
-      if (core < 0 || !m_tolerant_core_set.insert(core).second) {
+      if (core < 0 || core >= m_num_cores || !m_tolerant_core_set.insert(core).second) {
         throw std::runtime_error("FirstTouchPageColoring tolerant_cores must be unique non-negative ids");
       }
     }
@@ -122,6 +139,9 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
   }
 
   bool translate(Request& req) override {
+    if (req.source_id < 0 || req.source_id >= m_num_cores) {
+      throw std::runtime_error("FirstTouchPageColoring request source_id is outside num_cores");
+    }
     Addr_t virtual_addr = req.addr;
     uint64_t virtual_page = static_cast<uint64_t>(virtual_addr / m_page_size);
     Addr_t page_offset = virtual_addr & (m_page_size - 1);
@@ -132,15 +152,15 @@ class FirstTouchPageColoring final : public ITranslation, public Implementation 
       bool tolerant = m_tolerant_core_set.count(req.source_id) != 0;
       uint64_t physical_page = 0;
       if (tolerant) {
-        if (!allocate_from_ba(m_reduced_ba, physical_page)) {
-          if (!allocate_reliable(physical_page)) {
+        if (!allocate_from_ba(req.source_id, m_reduced_ba, physical_page)) {
+          if (!allocate_reliable(req.source_id, physical_page)) {
             throw std::runtime_error("FirstTouchPageColoring exhausted physical pages");
           }
           s_pages_borrowed++;
         }
         s_pages_tolerant++;
       } else {
-        if (!allocate_reliable(physical_page)) {
+        if (!allocate_reliable(req.source_id, physical_page)) {
           throw std::runtime_error("FirstTouchPageColoring exhausted reliable physical pages");
         }
         s_pages_reliable++;
