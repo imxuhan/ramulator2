@@ -45,7 +45,7 @@ def test_refdb_blocks_only_two_target_banks_for_nrfcdb():
     first = addr(dut, 0, 2)
     second = addr(dut, 3, 2)
     other = addr(dut, 1, 2)
-    nrfcdb = dut.timing("nRFCdb")
+    nrfcdb = dut.timings["nRFCdb"]
 
     dut.issue_pair("REFdb", first, second, clk=0)
 
@@ -60,7 +60,7 @@ def test_refdb_short_gap_is_tight():
     dut = make_dut()
     first = (addr(dut, 0, 0), addr(dut, 1, 0))
     second = (addr(dut, 2, 0), addr(dut, 3, 0))
-    short = dut.timing("ndbR2dbR_S")
+    short = dut.timings["ndbR2dbR_S"]
 
     dut.issue_pair("REFdb", *first, clk=0)
 
@@ -71,6 +71,6 @@ def test_refdb_short_gap_is_tight():
 def test_lpddr6_refdb_table_302_timings():
     dut = make_dut()
 
-    assert dut.timing("nRFCdb") == 427  # ceil(160 ns / 0.375 ns)
-    assert dut.timing("ndbR2dbR_S") == 126  # ceil(47 ns / 0.375 ns)
-    assert dut.timing("ndbR2dbR_L") == 240  # 90 ns / 0.375 ns
+    assert dut.timings["nRFCdb"] == 427  # ceil(160 ns / 0.375 ns)
+    assert dut.timings["ndbR2dbR_S"] == 126  # ceil(47 ns / 0.375 ns)
+    assert dut.timings["ndbR2dbR_L"] == 240  # 90 ns / 0.375 ns
