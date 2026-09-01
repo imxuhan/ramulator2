@@ -32,6 +32,7 @@ class IssuedCommandValidationHook final
         .command = req.command,
         .final_command = req.final_command,
         .addr_vec = req.addr_vec,
+        .secondary_addr_vec = req.secondary_addr_vec,
         .type_id = req.type_id,
         .source_id = req.source_id,
     });

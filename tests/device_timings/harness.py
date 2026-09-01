@@ -45,6 +45,14 @@ class ProbeResult:
     row_open: bool
 
 
+@dataclass(frozen=True)
+class PairProbeResult:
+    preq: str
+    timing_OK: bool
+    ready: bool
+    target_banks: list[int]
+
+
 class DeviceUnderTest:
     """Thin Python wrapper over the C++ ``_DeviceUnderTest`` shim.
 
@@ -93,6 +101,14 @@ class DeviceUnderTest:
         """
         self._cpp.issue(command, addr_vec, clk)
 
+    def probe_pair(
+        self, command: str, first: list[int], second: list[int], clk: int
+    ) -> PairProbeResult:
+        return PairProbeResult(**self._cpp.probe_pair(command, first, second, clk))
+
+    def issue_pair(self, command: str, first: list[int], second: list[int], clk: int) -> None:
+        self._cpp.issue_pair(command, first, second, clk)
+
     def get_first_ready_clk(self, command: str, addr_vec: list[int], start: int = 0) -> int:
         """Return the first cycle at or after ``start`` where ``command`` is ready."""
         clk = start
@@ -124,5 +140,6 @@ class DeviceUnderTest:
 
 __all__ = [
     "ProbeResult",
+    "PairProbeResult",
     "DeviceUnderTest",
 ]

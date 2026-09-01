@@ -12,6 +12,7 @@ struct IssuedCommandRecord {
   int command = -1;
   int final_command = -1;
   AddrVec_t addr_vec{};
+  AddrVec_t secondary_addr_vec{};
   int type_id = -1;
   int source_id = -1;
 };

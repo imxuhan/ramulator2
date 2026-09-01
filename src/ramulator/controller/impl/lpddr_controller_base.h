@@ -96,6 +96,11 @@ class LPDDRControllerBase : public ControllerBase {
   void issue_standard_candidate(Candidate cand);
   void move_to_activating(ReqBuffer::iterator& req_it, ReqBuffer& buffer);
   void promote_from_activating(ReqBuffer::iterator& req_it, ReqBuffer& buffer);
+
+  // Standard-specific command legality that is not expressible by the static
+  // timing tables (for example LPDDR6 weighted tFAW and REFdb round gaps).
+  virtual bool protocol_allows(const Request& req, Clk_t issue_clk) const { return true; }
+  virtual void protocol_on_issue(const Request& req) {}
 };
 
 }  // namespace Ramulator

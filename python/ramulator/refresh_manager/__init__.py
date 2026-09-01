@@ -6,7 +6,8 @@
 ###############################################################################
 from .all_bank import AllBank
 from .hbm34_per_bank_refresh import HBM34PerBankRefresh
+from .lpddr6_dual_bank import LPDDR6DualBank
 from .no_refresh import NoRefresh
 from .per_bank import PerBank
 
-__all__ = ['AllBank', 'HBM34PerBankRefresh', 'NoRefresh', 'PerBank']
+__all__ = ['AllBank', 'HBM34PerBankRefresh', 'LPDDR6DualBank', 'NoRefresh', 'PerBank']

@@ -14,6 +14,9 @@ struct Request {
   Addr_t addr = -1;
   Addr_t intra_channel_addr = -1;  // Flat address with channel bits stripped
   AddrVec_t addr_vec{};
+  // Optional second DRAM address for commands that atomically target a pair
+  // of banks (LPDDR6 REFdb). Empty for ordinary requests and commands.
+  AddrVec_t secondary_addr_vec{};
 
   // Universal built-in external request types — always Read = 0, Write = 1.
   // Additional non-negative ids may exist as metadata for future extensions.

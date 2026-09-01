@@ -24,8 +24,23 @@ bool ControllerBase::check_timing(int command, const AddrVec_t& addr_vec) {
   return m_device.check_timing(command, addr_vec, m_clk);
 }
 
+bool ControllerBase::check_timing(const Request& req) {
+  const AddrVec_t* secondary = req.secondary_addr_vec.empty() ? nullptr : &req.secondary_addr_vec;
+  return m_device.check_timing(req.command, req.addr_vec, m_clk, secondary);
+}
+
 int ControllerBase::get_preq_command(int command, const AddrVec_t& addr_vec) {
   return m_device.get_preq_command(command, addr_vec, m_clk);
+}
+
+int ControllerBase::get_preq_command(const Request& req) {
+  const AddrVec_t* secondary = req.secondary_addr_vec.empty() ? nullptr : &req.secondary_addr_vec;
+  return m_device.get_preq_command(req.final_command, req.addr_vec, m_clk, secondary);
+}
+
+void ControllerBase::issue_device_command(const Request& req) {
+  const AddrVec_t* secondary = req.secondary_addr_vec.empty() ? nullptr : &req.secondary_addr_vec;
+  m_device.issue_command(req.command, req.addr_vec, m_clk, secondary);
 }
 
 int ControllerBase::get_tx_bytes() const {
@@ -269,7 +284,7 @@ ControllerBase::Candidate ControllerBase::pick_best_ready_from(
   if (it == buffer.end()) {
     return c;
   }
-  if (!check_timing(it->command, it->addr_vec)) {
+  if (!check_timing(*it)) {
     return c;
   }
   c.valid = true;
@@ -285,8 +300,8 @@ ControllerBase::Candidate ControllerBase::pick_priority_if(RequestFilterRef filt
   }
 
   auto it = m_priority_buffer.begin();
-  it->command = get_preq_command(it->final_command, it->addr_vec);
-  if (!check_timing(it->command, it->addr_vec)) {
+  it->command = get_preq_command(*it);
+  if (!check_timing(*it)) {
     return c;
   }
   if (would_close_active(*it)) {
@@ -328,21 +343,18 @@ bool ControllerBase::would_close_active(const Request& req) const {
     return m_active_per_bank[m_device.get_flat_bank_id(req.addr_vec)] > 0;
   }
 
-  // All / SameBank: scan occupied banks with proper scope checking.
+  // Multi-bank commands: scan occupied banks with proper scope checking.
   // These are rare maintenance commands — linear scan skipping zeros is fine.
-  for (int i = 0; i < static_cast<int>(m_active_per_bank.size()); i++) {
-    if (m_active_per_bank[i] == 0) {
-      continue;
-    }
-    if (target == BankTarget::SameBank &&
-        m_device.m_bank_nodes[i]->m_node_id != req.addr_vec[m_bank_level]) {
-      continue;
-    }
-    if (m_device.bank_matches(m_device.m_bank_nodes[i], req.addr_vec)) {
+  const AddrVec_t* secondary = req.secondary_addr_vec.empty() ? nullptr : &req.secondary_addr_vec;
+  bool blocked = false;
+  m_device.for_each_target_bank_while(req.command, req.addr_vec, secondary, [&](int bank_id) {
+    if (m_active_per_bank[bank_id] > 0) {
+      blocked = true;
       return true;
     }
-  }
-  return false;
+    return true;
+  });
+  return blocked;
 }
 
 void ControllerBase::update_request_stats(ReqBuffer::iterator& req) {

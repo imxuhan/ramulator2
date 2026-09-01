@@ -68,7 +68,8 @@ void LPDDRControllerBase::tick() {
         update_request_stats(m_cas_req_it);
       }
 
-      m_device.issue_command(m_cas_req_it->command, m_cas_req_it->addr_vec, m_clk);
+      issue_device_command(*m_cas_req_it);
+      protocol_on_issue(*m_cas_req_it);
 
       m_rowpolicy->on_issue(*m_cas_req_it);
       for (auto* p : m_plugins) {
@@ -235,7 +236,10 @@ bool LPDDRControllerBase::can_start_act1(const Request& req) {
   }
 
   Clk_t earliest_act2 = m_clk + m_device.m_spec->command_cycles[m_cmd_act1];
-  return m_device.check_timing(m_cmd_act2, req.addr_vec, earliest_act2);
+  Request act2 = req;
+  act2.command = m_cmd_act2;
+  return m_device.check_timing(m_cmd_act2, req.addr_vec, earliest_act2) &&
+         protocol_allows(act2, earliest_act2);
 }
 
 bool LPDDRControllerBase::is_owned_act2_candidate(const Request& req) const {
@@ -252,18 +256,19 @@ bool LPDDRControllerBase::is_owned_act2_candidate(const Request& req) const {
 
 ControllerBase::Candidate LPDDRControllerBase::select_normal_candidate() {
   Candidate cand = pick_best_ready_from(m_active_buffer, [&](const Request& req) {
-    return is_allowed_during_pending_act2(req.command, req.addr_vec) && can_start_act1(req);
+    return is_allowed_during_pending_act2(req.command, req.addr_vec) &&
+           protocol_allows(req, m_clk) && can_start_act1(req);
   });
   if (!cand.valid) {
     cand = pick_priority_if([&](const Request& req) {
       return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec) &&
-             can_start_act1(req);
+             protocol_allows(req, m_clk) && can_start_act1(req);
     });
   }
   if (!cand.valid && m_priority_buffer.size() == 0) {
     cand = pick_rw_if([&](const Request& req) {
       return is_owned_act2_candidate(req) && is_allowed_during_pending_act2(req.command, req.addr_vec) &&
-             can_start_act1(req);
+             protocol_allows(req, m_clk) && can_start_act1(req);
     });
   }
   return cand;
@@ -315,7 +320,7 @@ ControllerBase::Candidate LPDDRControllerBase::pick_urgent_act2() {
 
     it->command = m_cmd_act2;
 
-    bool timing_ok = check_timing(it->command, it->addr_vec);
+    bool timing_ok = check_timing(*it) && protocol_allows(*it, m_clk);
     assert(deadline > m_clk || timing_ok);
     if (deadline > m_clk || !timing_ok) {
       continue;
@@ -344,7 +349,7 @@ ControllerBase::Candidate LPDDRControllerBase::pick_deferred_act2() {
     assert(deadline >= 0);
 
     it->command = m_cmd_act2;
-    if (!check_timing(it->command, it->addr_vec)) {
+    if (!check_timing(*it) || !protocol_allows(*it, m_clk)) {
       continue;
     }
 
@@ -373,7 +378,8 @@ void LPDDRControllerBase::issue_owned_act2(Candidate cand, Act2IssueKind kind) {
     update_request_stats(cand.it);
   }
 
-  m_device.issue_command(m_cmd_act2, cand.it->addr_vec, m_clk);
+  issue_device_command(*cand.it);
+  protocol_on_issue(*cand.it);
 
   m_rowpolicy->on_issue(*cand.it);
   for (auto* p : m_plugins) {
@@ -447,7 +453,8 @@ void LPDDRControllerBase::issue_standard_candidate(Candidate cand) {
     update_request_stats(cand.it);
   }
 
-  m_device.issue_command(cmd, cand.it->addr_vec, m_clk);
+  issue_device_command(*cand.it);
+  protocol_on_issue(*cand.it);
 
   m_rowpolicy->on_issue(*cand.it);
   for (auto* p : m_plugins) {

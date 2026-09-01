@@ -33,13 +33,16 @@ class DRAMDevice {
   void set_channel_id(int channel_id);
 
   // Issue a command: update timing (hierarchical) then apply state (flat bank dispatch)
-  void issue_command(int command, const AddrVec_t& addr_vec, Clk_t clk);
+  void issue_command(int command, const AddrVec_t& addr_vec, Clk_t clk,
+                     const AddrVec_t* secondary_addr_vec = nullptr);
 
   // Timing-only check — hierarchical (walks node tree)
-  bool check_timing(int command, const AddrVec_t& addr_vec, Clk_t clk);
+  bool check_timing(int command, const AddrVec_t& addr_vec, Clk_t clk,
+                    const AddrVec_t* secondary_addr_vec = nullptr);
 
   // Prerequisite check — flat bank dispatch
-  int get_preq_command(int command, const AddrVec_t& addr_vec, Clk_t clk);
+  int get_preq_command(int command, const AddrVec_t& addr_vec, Clk_t clk,
+                       const AddrVec_t* secondary_addr_vec = nullptr);
 
   // Row buffer hit check — flat bank lookup (always single bank)
   bool check_rowbuffer_hit(int command, const AddrVec_t& addr_vec, Clk_t clk);
@@ -55,12 +58,20 @@ class DRAMDevice {
 
   // Get indices into m_bank_nodes for the target banks of a command (cold-path wrapper)
   std::vector<int> get_target_banks(int command, const AddrVec_t& addr_vec) const;
+  std::vector<int> get_target_banks(int command, const AddrVec_t& addr_vec,
+                                    const AddrVec_t* secondary_addr_vec) const;
 
   /// Visit target bank(s) for a command with early-exit support.
   /// Visitor signature: bool(int bank_id) — return true to continue, false to stop.
   /// Returns true if all banks were visited, false if visitor short-circuited.
   template <class Visitor>
   bool for_each_target_bank_while(int command, const AddrVec_t& addr_vec, Visitor&& visitor) const {
+    return for_each_target_bank_while(command, addr_vec, nullptr, std::forward<Visitor>(visitor));
+  }
+
+  template <class Visitor>
+  bool for_each_target_bank_while(int command, const AddrVec_t& addr_vec,
+                                  const AddrVec_t* secondary_addr_vec, Visitor&& visitor) const {
     switch (m_spec->bank_targets[command]) {
       case BankTarget::Single:
         return visitor(get_flat_bank_id(addr_vec));
@@ -81,6 +92,14 @@ class DRAMDevice {
         }
         return true;
       }
+
+      case BankTarget::Pair: {
+        validate_pair_addr_vecs(addr_vec, secondary_addr_vec);
+        int first = get_flat_bank_id(addr_vec);
+        int second = get_flat_bank_id(*secondary_addr_vec);
+        if (!visitor(first)) return false;
+        return visitor(second);
+      }
     }
     return true;
   }
@@ -88,15 +107,25 @@ class DRAMDevice {
   /// Visit all target bank(s) for a command. Visitor signature: void(int bank_id).
   template <class Visitor>
   void for_each_target_bank(int command, const AddrVec_t& addr_vec, Visitor&& visitor) const {
-    for_each_target_bank_while(command, addr_vec, [&](int bank_id) {
+    for_each_target_bank(command, addr_vec, nullptr, std::forward<Visitor>(visitor));
+  }
+
+  template <class Visitor>
+  void for_each_target_bank(int command, const AddrVec_t& addr_vec,
+                            const AddrVec_t* secondary_addr_vec, Visitor&& visitor) const {
+    for_each_target_bank_while(command, addr_vec, secondary_addr_vec, [&](int bank_id) {
       visitor(bank_id);
       return true;
     });
   }
 
  private:
+  void validate_pair_addr_vecs(const AddrVec_t& addr_vec,
+                               const AddrVec_t* secondary_addr_vec) const;
+
   // Flat bank dispatch — apply action to target banks
-  void apply_action(int command, const AddrVec_t& addr_vec, Clk_t clk);
+  void apply_action(int command, const AddrVec_t& addr_vec, Clk_t clk,
+                    const AddrVec_t* secondary_addr_vec);
 };
 
 }  // namespace Ramulator

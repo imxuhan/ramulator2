@@ -18,6 +18,7 @@ class IssuedCommand:
     clk: int
     command: str
     addr_vec: list[int]
+    secondary_addr_vec: list[int]
     type_id: int
     source_id: int
 
@@ -122,12 +123,18 @@ class ControllerUnderTest:
             raise ValueError(f"Unknown command: {command_name}")
         self._cpp.priority_send(command_name, addr_vec)
 
+    def priority_send_pair(self, command_name: str, first: list[int], second: list[int]) -> None:
+        if command_name not in self.command_names:
+            raise ValueError(f"Unknown command: {command_name}")
+        self._cpp.priority_send_pair(command_name, first, second)
+
     def tick(self) -> list[IssuedCommand]:
         issued = [
             IssuedCommand(
                 clk=item["clk"],
                 command=item["command"],
                 addr_vec=list(item["addr_vec"]),
+                secondary_addr_vec=list(item["secondary_addr_vec"]),
                 type_id=item["type_id"],
                 source_id=item["source_id"],
             )

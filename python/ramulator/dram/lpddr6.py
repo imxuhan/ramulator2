@@ -26,7 +26,7 @@ class LPDDR6(DRAMStandard):
         "CAS",
         "RD_S", "WR_S", "RDA_S", "WRA_S",
         "RD_L", "WR_L", "RDA_L", "WRA_L",
-        "REFab",
+        "REFab", "REFdb",
     ]
 
     # LPDDR6 commands use an every-other-CK command protocol.
@@ -36,7 +36,7 @@ class LPDDR6(DRAMStandard):
         "CAS": 2,
         "RD_S": 2, "WR_S": 2, "RDA_S": 2, "WRA_S": 2,
         "RD_L": 2, "WR_L": 2, "RDA_L": 2, "WRA_L": 2,
-        "REFab": 2,
+        "REFab": 2, "REFdb": 2,
     }
 
     states = ["Opened", "Closed", "Activating", "N_A"]
@@ -50,7 +50,7 @@ class LPDDR6(DRAMStandard):
         "nCCDS", "nCCDL", "nCCDL_L", "nCCDS_WR", "nCCDL_WR", "nCCDL_WR_L",
         "nRRD", "nWTRS", "nWTRL", "nRTW_S", "nRTW_L", "nRTW_S_L", "nRTW_L_L",
         "nWCK2DQO", "nRPST", "nODTLon", "nODTon_min",
-        "nFAW", "nRFC", "nREFI",
+        "nFAW", "nRFC", "nREFI", "nRFCdb", "nREFIdb", "ndbR2dbR_S", "ndbR2dbR_L",
         "nWCKPST", "nCAS", "nAAD", "nCS", "tCK_ps",
     ]
 
@@ -113,6 +113,10 @@ class LPDDR6(DRAMStandard):
         TimingConstraint(level="Rank", preceding=["WRA_L"], following=["REFab"], latency="nWL + nBL_max_L + nWTP + nRP"),
         TimingConstraint(level="Rank", preceding=["REFab"], following=["ACT2"], latency="nRFC"),
         TimingConstraint(level="Rank", preceding=["REFab"], following=["PREab"], latency="nRFC"),
+        # REFdb commands in the same shared-counter round use the short gap.
+        # The standard refresh manager enforces the long gap after the eighth
+        # command advances the shared row counter.
+        TimingConstraint(level="Rank", preceding=["REFdb"], following=["REFdb"], latency="ndbR2dbR_S"),
 
         # BankGroup — same-BG column timing (JESD209-6 Tables 382-384).
         TimingConstraint(level="BankGroup", preceding=["RD_S", "RDA_S"], following=["RD_S", "RDA_S", "RD_L", "RDA_L"], latency="nCCDL"),
@@ -145,6 +149,14 @@ class LPDDR6(DRAMStandard):
         TimingConstraint(level="Bank", preceding=["RDA_L"], following=["ACT2"], latency="nRTP_L + nRP"),
         TimingConstraint(level="Bank", preceding=["WRA_S"], following=["ACT2"], latency="nWL + nBL_max + nWTP + nRP"),
         TimingConstraint(level="Bank", preceding=["WRA_L"], following=["ACT2"], latency="nWL + nBL_max_L + nWTP + nRP"),
+        # LPDDR6 dual-bank refresh blocks only its two target banks.
+        TimingConstraint(level="Bank", preceding=["ACT2"], following=["REFdb"], latency="nRC"),
+        TimingConstraint(level="Bank", preceding=["PREpb"], following=["REFdb"], latency="nRP"),
+        TimingConstraint(level="Bank", preceding=["RDA_S"], following=["REFdb"], latency="nRTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["RDA_L"], following=["REFdb"], latency="nRTP_L + nRP"),
+        TimingConstraint(level="Bank", preceding=["WRA_S"], following=["REFdb"], latency="nWL + nBL_max + nWTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["WRA_L"], following=["REFdb"], latency="nWL + nBL_max_L + nWTP + nRP"),
+        TimingConstraint(level="Bank", preceding=["REFdb"], following=["ACT2", "PREpb"], latency="nRFCdb"),
     ]
 
     @classmethod
@@ -159,6 +171,10 @@ class LPDDR6(DRAMStandard):
         cls._resolve_read_to_write_timings(timing_dict, org_dict)
         timing_dict["nRFC"] = cls._resolve_nRFC(org_dict["refresh_density_per_2_subchannels"], timing_dict["tCK_ps"])
         timing_dict["nREFI"] = cls._resolve_nREFI(timing_dict["tCK_ps"])
+        timing_dict["nRFCdb"] = cls._resolve_nRFCdb(org_dict["density"], timing_dict["tCK_ps"])
+        timing_dict["nREFIdb"] = timing_dict.get("nREFIdb", math.ceil(timing_dict["nREFI"] / 8))
+        timing_dict["ndbR2dbR_S"] = timing_dict.get("ndbR2dbR_S", math.ceil(47_000 / tCK_ps))
+        timing_dict["ndbR2dbR_L"] = timing_dict.get("ndbR2dbR_L", math.ceil(90_000 / tCK_ps))
 
     @staticmethod
     def _resolve_nACU(tCK_ps):
@@ -219,6 +235,21 @@ class LPDDR6(DRAMStandard):
     def _resolve_nREFI(tCK_ps):
         # JESD209-6 Table 302: tREFI = 3906 ns.
         return math.ceil(3_906_000 / tCK_ps)
+
+    @staticmethod
+    def _resolve_nRFCdb(density, tCK_ps):
+        # JESD209-6 Table 302, density per device.
+        if density <= 4096:
+            raise ValueError("LPDDR6: JESD209-6 Table 302 tRFCdb is TBD for 4Gb devices")
+        elif density <= 8192:
+            tRFCdb_ns = 140
+        elif density <= 16384:
+            tRFCdb_ns = 160
+        elif density <= 32768:
+            tRFCdb_ns = 210
+        else:
+            raise ValueError("LPDDR6: JESD209-6 Table 302 tRFCdb is TBD above 32Gb")
+        return math.ceil(tRFCdb_ns * 1000 / tCK_ps)
 
 
 LPDDR6.org_presets = {

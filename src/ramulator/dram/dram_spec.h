@@ -21,6 +21,7 @@ enum class BankTarget {
   Single,    // One specific bank (ACT, PREpb, RD, WR, RDA, WRA)
   All,       // All banks under scope (PREab, REFab, RFMab)
   SameBank,  // Same bank ID in every bank group (PREsb, REFsb — DDR5)
+  Pair,      // Two explicit banks carried by primary and secondary address vectors
 };
 
 // Organization hierarchy of the device

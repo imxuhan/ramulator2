@@ -89,6 +89,34 @@ class DeviceUnderTestCpp {
     m_device.issue_command(cmd, addr_vec, clk);
   }
 
+  nb::dict probe_pair(const std::string& command_name, const AddrVec_t& first,
+                      const AddrVec_t& second, Clk_t clk) {
+    validate_addr_vec_size(spec(), first);
+    validate_addr_vec_size(spec(), second);
+    int cmd = spec().get_command_id(command_name);
+    int preq = m_device.get_preq_command(cmd, first, clk, &second);
+    bool timing_ok = m_device.check_timing(cmd, first, clk, &second);
+
+    nb::dict out;
+    out["preq"] = spec().command_names[preq];
+    out["timing_OK"] = timing_ok;
+    out["ready"] = preq == cmd && timing_ok;
+    out["target_banks"] = m_device.get_target_banks(cmd, first, &second);
+    return out;
+  }
+
+  void issue_pair(const std::string& command_name, const AddrVec_t& first,
+                  const AddrVec_t& second, Clk_t clk) {
+    validate_addr_vec_size(spec(), first);
+    validate_addr_vec_size(spec(), second);
+    int cmd = spec().get_command_id(command_name);
+    int preq = m_device.get_preq_command(cmd, first, clk, &second);
+    if (preq != cmd || !m_device.check_timing(cmd, first, clk, &second)) {
+      throw std::runtime_error("Cannot issue pair command '" + command_name + "'");
+    }
+    m_device.issue_command(cmd, first, clk, &second);
+  }
+
  private:
   DRAMDevice m_device;
 
@@ -306,6 +334,20 @@ class ControllerUnderTestCpp {
     m_command_outstanding++;
   }
 
+  void priority_send_pair(const std::string& command_name, const AddrVec_t& first,
+                          const AddrVec_t& second) {
+    validate_addr_vec_size(spec(), first);
+    validate_addr_vec_size(spec(), second);
+    int command = spec().get_command_id(command_name);
+    Request req(first, Request::Cmd, command);
+    req.secondary_addr_vec = second;
+    req.source_id = kHarnessInternalSourceId;
+    if (!m_controller->priority_send(req)) {
+      throw std::runtime_error("ControllerUnderTest failed to enqueue pair command");
+    }
+    m_command_outstanding++;
+  }
+
   nb::list tick() {
     m_memory_system->tick();
 
@@ -324,6 +366,7 @@ class ControllerUnderTestCpp {
       item["clk"] = rec.clk;
       item["command"] = spec().command_names[rec.command];
       item["addr_vec"] = rec.addr_vec;
+      item["secondary_addr_vec"] = rec.secondary_addr_vec;
       item["type_id"] = rec.type_id;
       item["source_id"] = rec.source_id;
       issued.append(item);
@@ -397,7 +440,11 @@ NB_MODULE(_ramulator_test, m) {
       .def_prop_ro("timings", &DeviceUnderTestCpp::timings)
       .def("timing", &DeviceUnderTestCpp::timing, nb::arg("name"))
       .def("probe", &DeviceUnderTestCpp::probe, nb::arg("command"), nb::arg("addr_vec"), nb::arg("clk"))
-      .def("issue", &DeviceUnderTestCpp::issue, nb::arg("command"), nb::arg("addr_vec"), nb::arg("clk"));
+      .def("issue", &DeviceUnderTestCpp::issue, nb::arg("command"), nb::arg("addr_vec"), nb::arg("clk"))
+      .def("probe_pair", &DeviceUnderTestCpp::probe_pair, nb::arg("command"), nb::arg("first"),
+           nb::arg("second"), nb::arg("clk"))
+      .def("issue_pair", &DeviceUnderTestCpp::issue_pair, nb::arg("command"), nb::arg("first"),
+           nb::arg("second"), nb::arg("clk"));
 
   nb::class_<ChannelMapperUnderTestCpp>(m, "_ChannelMapperUnderTest")
       .def(nb::init<nb::dict, int, int>(),
@@ -419,6 +466,8 @@ NB_MODULE(_ramulator_test, m) {
       .def("send_request", &ControllerUnderTestCpp::send_request,
            nb::arg("type_id"), nb::arg("addr_vec"), nb::arg("source_id") = 0)
       .def("priority_send", &ControllerUnderTestCpp::priority_send, nb::arg("command"), nb::arg("addr_vec"))
+      .def("priority_send_pair", &ControllerUnderTestCpp::priority_send_pair, nb::arg("command"),
+           nb::arg("first"), nb::arg("second"))
       .def("tick", &ControllerUnderTestCpp::tick)
       .def("is_idle", &ControllerUnderTestCpp::is_idle)
       .def("stats", &ControllerUnderTestCpp::stats);

@@ -14,6 +14,7 @@ target_sources(
   refresh/impl/all_bank.cpp
   refresh/impl/per_bank.cpp
   refresh/impl/hbm34_per_bank_refresh.cpp
+  refresh/impl/lpddr6_dual_bank.cpp
   refresh/impl/no_refresh.cpp
 
   rowpolicy/i_row_policy.h
