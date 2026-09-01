@@ -76,3 +76,4 @@ def test_lpddr6_refdb_table_302_timings():
     assert dut.timings["nRFCdb"] == 427  # ceil(160 ns / 0.375 ns)
     assert dut.timings["ndbR2dbR_S"] == 126  # ceil(47 ns / 0.375 ns)
     assert dut.timings["ndbR2dbR_L"] == 240  # 90 ns / 0.375 ns
+    assert ramulator.dram.LPDDR6._resolve_nRFCdb(32_768, 375) == 560

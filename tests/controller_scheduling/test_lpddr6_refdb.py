@@ -1,6 +1,10 @@
 import ramulator
 
-from tests.controller_scheduling.test_lpddr6_bl24 import make_lpddr6_dut
+from tests.controller_scheduling.test_lpddr6_bl24 import (
+    lpddr6_addr,
+    make_lpddr6_dut,
+    open_row,
+)
 
 
 def refdb_key(dut, command):
@@ -79,3 +83,26 @@ def test_refdb_consumes_two_tfaw_activation_credits():
     assert len(activations) == 3
     assert activations[1].clk - ref.clk < dut.timing("nFAW")
     assert activations[2].clk - ref.clk >= dut.timing("nFAW")
+
+
+def test_refdb_manager_precharges_only_its_two_open_target_banks():
+    dut = make_lpddr6_dut(
+        refresh_manager=ramulator.refresh_manager.LPDDR6DualBank(),
+        wck_sync_mode="always_on",
+    )
+    open_row(dut, lpddr6_addr(dut, bankgroup=0, bank=0))
+    open_row(dut, lpddr6_addr(dut, bankgroup=1, bank=0))
+    start = len(dut.history)
+
+    for _ in range(2000):
+        issued = dut.tick()
+        if any(item.command == "REFdb" for item in issued):
+            break
+
+    maintenance = [
+        item.command
+        for item in dut.history[start:]
+        if item.command in {"PREpb", "PREab", "REFdb"}
+    ]
+    assert maintenance[:3] == ["PREpb", "PREpb", "REFdb"]
+    assert "PREab" not in maintenance
