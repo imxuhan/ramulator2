@@ -53,7 +53,9 @@ def test_refdb_blocks_only_two_target_banks_for_nrfcdb():
     assert not dut.probe("ACT2", second, clk=nrfcdb - 1).timing_OK
     assert dut.probe("ACT2", first, clk=nrfcdb).timing_OK
     assert dut.probe("ACT2", second, clk=nrfcdb).timing_OK
-    assert dut.probe("ACT2", other, clk=0).timing_OK
+    # REFdb occupies the command bus for 2 CK, but must not impose nRFCdb on
+    # any of the other 14 banks.
+    assert dut.probe("ACT2", other, clk=2).timing_OK
 
 
 def test_refdb_short_gap_is_tight():
