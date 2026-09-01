@@ -23,6 +23,7 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
   int m_warmup_insts = 0;
   bool m_roi_started = false;
   std::vector<std::string> m_traces;
+  std::vector<std::string> m_sidecars;
   int m_ipc = 4;
   int m_depth = 128;
   int m_llc_latency = 47;
@@ -47,6 +48,7 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
     RAMULATOR_PARSE_PARAM(m_num_expected_insts, int, "num_expected_insts").required();
     RAMULATOR_PARSE_PARAM(m_warmup_insts, int, "warmup_insts").default_val(0);
     RAMULATOR_PARSE_PARAM(m_traces, std::vector<std::string>, "traces").required();
+    RAMULATOR_PARSE_PARAM(m_sidecars, std::vector<std::string>, "object_sidecars").default_val({});
     RAMULATOR_PARSE_PARAM(m_ipc, int, "ipc").default_val(4);
     RAMULATOR_PARSE_PARAM(m_depth, int, "inst_window_depth").default_val(128);
     RAMULATOR_PARSE_PARAM(m_llc_latency, int, "llc_latency").default_val(47);
@@ -58,6 +60,11 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
     if (m_traces.size() != 4) {
       throw std::runtime_error("ChampSimO3 M3 frontend requires exactly four traces");
     }
+    if (!m_sidecars.empty() && m_sidecars.size() != m_traces.size()) {
+      throw std::runtime_error(
+          "ChampSimO3 object_sidecars must be empty or have one entry per trace");
+    }
+    if (m_sidecars.empty()) m_sidecars.resize(m_traces.size());
     if (m_num_expected_insts <= 0) {
       throw std::runtime_error("ChampSimO3 num_expected_insts must be positive");
     }
@@ -79,7 +86,7 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
       auto core = std::make_unique<ChampSimO3Core>(
           m_clk, core_id, m_ipc, m_depth, static_cast<size_t>(m_warmup_insts),
           static_cast<size_t>(m_num_expected_insts),
-          m_traces.at(core_id), m_translation, m_llc.get());
+          m_traces.at(core_id), m_sidecars.at(core_id), m_translation, m_llc.get());
       core->set_callback([this](Request& req) { receive(req); });
       m_cores.push_back(std::move(core));
     }

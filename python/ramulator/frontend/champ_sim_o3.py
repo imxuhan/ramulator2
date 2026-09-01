@@ -16,6 +16,7 @@ class ChampSimO3(Component):
     num_expected_insts = Param(int, required=True)
     warmup_insts = Param(int, default=0)
     traces = Param(list, required=True)
+    object_sidecars = Param(list, default=[])
     ipc = Param(int, default=4)
     inst_window_depth = Param(int, default=128)
     llc_latency = Param(int, default=47)

@@ -57,6 +57,7 @@ int ChampSimO3Core::InstWindow::retire() {
 ChampSimO3Core::ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth,
                                size_t warmup_insts, size_t num_expected_insts,
                                const std::string& trace_path,
+                               const std::string& sidecar_path,
                                ITranslation* translation, SimpleO3LLC* llc)
     : m_clk(clk),
       m_id(id),
@@ -65,12 +66,16 @@ ChampSimO3Core::ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth,
       m_warmup_insts(warmup_insts),
       m_roi_insts(num_expected_insts),
       m_trace(trace_path),
+      m_sidecar(sidecar_path.empty() ? nullptr : std::make_unique<ObjectSidecar>(sidecar_path)),
       m_window(ipc, depth),
       m_translation(translation),
       m_llc(llc),
       m_current(m_trace.next()) {
   if (num_expected_insts == 0) {
     throw std::runtime_error("ChampSimO3 num_expected_insts must be positive");
+  }
+  if (m_sidecar) {
+    m_sidecar->advance(m_trace.passes_completed(), m_trace.record_index_this_pass());
   }
   if (m_warmup_insts == 0) begin_roi();
 }
@@ -99,6 +104,9 @@ int ChampSimO3Core::current_memory_count() const {
 
 void ChampSimO3Core::advance_trace() {
   m_current = m_trace.next();
+  if (m_sidecar) {
+    m_sidecar->advance(m_trace.passes_completed(), m_trace.record_index_this_pass());
+  }
   m_next_load = 0;
   m_next_store = 0;
   m_current_inserted = false;
@@ -144,6 +152,7 @@ void ChampSimO3Core::tick() {
       }
       Request req(static_cast<Addr_t>(addr), Request::Type::Read, m_id, m_callback);
       req.ingress_id = static_cast<int>(m_current_id);
+      if (m_sidecar) req.memory_class = m_sidecar->classify(addr);
       if (!m_translation->translate(req) || !m_llc->send(req)) {
         return;
       }
@@ -162,6 +171,7 @@ void ChampSimO3Core::tick() {
       }
       Request req(static_cast<Addr_t>(addr), Request::Type::Write, m_id, m_callback);
       req.ingress_id = -1;
+      if (m_sidecar) req.memory_class = m_sidecar->classify(addr);
       if (!m_translation->translate(req) || !m_llc->send(req)) {
         return;
       }

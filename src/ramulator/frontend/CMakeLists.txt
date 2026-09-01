@@ -14,6 +14,7 @@ target_sources(
   impl/processor/simpleO3/llc.h       impl/processor/simpleO3/llc.cpp
 
   impl/processor/champsimO3/trace.h   impl/processor/champsimO3/trace.cpp
+  impl/processor/champsimO3/object_sidecar.h impl/processor/champsimO3/object_sidecar.cpp
   impl/processor/champsimO3/core.h    impl/processor/champsimO3/core.cpp
   impl/processor/champsimO3/champsimO3.cpp
 

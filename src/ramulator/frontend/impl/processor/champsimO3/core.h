@@ -3,12 +3,14 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "ramulator/base/request.h"
 #include "ramulator/base/type.h"
+#include "ramulator/frontend/impl/processor/champsimO3/object_sidecar.h"
 #include "ramulator/frontend/impl/processor/champsimO3/trace.h"
 #include "ramulator/translation/i_translation.h"
 
@@ -49,6 +51,7 @@ class ChampSimO3Core {
   size_t m_roi_start_clk = 0;
   bool m_roi_started = false;
   ChampSimTrace m_trace;
+  std::unique_ptr<ObjectSidecar> m_sidecar;
   InstWindow m_window;
   ITranslation* m_translation;
   SimpleO3LLC* m_llc;
@@ -73,7 +76,8 @@ class ChampSimO3Core {
 
   ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth, size_t warmup_insts,
                  size_t num_expected_insts,
-                 const std::string& trace_path, ITranslation* translation, SimpleO3LLC* llc);
+                 const std::string& trace_path, const std::string& sidecar_path,
+                 ITranslation* translation, SimpleO3LLC* llc);
   void set_callback(std::function<void(Request&)> callback) { m_callback = std::move(callback); }
   void tick();
   void receive(Request& req);

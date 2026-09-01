@@ -3,7 +3,7 @@ from tests.controller_scheduling.test_champsim_m3 import write_traces
 import ramulator
 
 
-def make_simulation(traces, *, mode, tolerant_bas, warmup=16, roi=64):
+def make_simulation(traces, *, mode, tolerant_bas, warmup=16, roi=64, sidecars=None):
     translation = ramulator.translation.FirstTouchPageColoringM4(
         max_addr=2 * 1024**3,
         page_size=4096,
@@ -12,7 +12,7 @@ def make_simulation(traces, *, mode, tolerant_bas, warmup=16, roi=64):
         num_cores=4,
         tolerant_cores=[0, 1],
     )
-    frontend = ramulator.frontend.ChampSimO3(
+    frontend_args = dict(
         clock_ratio=4,
         warmup_insts=warmup,
         num_expected_insts=roi,
@@ -22,6 +22,9 @@ def make_simulation(traces, *, mode, tolerant_bas, warmup=16, roi=64):
         llc_capacity_per_core="64KB",
         translation=translation,
     )
+    if sidecars is not None:
+        frontend_args["object_sidecars"] = sidecars
+    frontend = ramulator.frontend.ChampSimO3(**frontend_args)
     dram = ramulator.dram.LPDDR6(
         org_preset="LPDDR6_16Gb_x12",
         timing_preset="LPDDR6_10667_BL24",
@@ -86,3 +89,39 @@ def test_m4_two_ba_coloring_keeps_page_classes_in_their_legal_bas(tmp_path):
         assert stats["reliable_pages_ba_1"] == 0
         assert stats["tolerant_pages_ba_2"] == 0
         assert stats["tolerant_pages_ba_3"] == 0
+
+
+def test_object_sidecar_overrides_whole_core_class_and_replays_on_loop(tmp_path):
+    traces = write_traces(tmp_path, records=8)
+    reliable = tmp_path / "core0.sidecar"
+    reliable.write_text(
+        "H\t1\tchampsim-input-instr-64\tglobal-record-order\treliable-default\n"
+        "B\t0\t0\n"
+        "E\t8\twindow_complete\t0\t1\n"
+    )
+    tolerant = tmp_path / "core1.sidecar"
+    tolerant.write_text(
+        "H\t1\tchampsim-input-instr-64\tglobal-record-order\treliable-default\n"
+        "B\t0\t0\n"
+        "A\t0\t0\t1\t0x20000000\t32768\ttolerant\tactivation\n"
+        "E\t8\twindow_complete\t0\t2\n"
+    )
+    sim = make_simulation(
+        traces,
+        mode="standard",
+        tolerant_bas=[0],
+        warmup=0,
+        roi=64,
+        sidecars=[str(reliable), str(tolerant), "", ""],
+    )
+    sim.run()
+    coloring = sim.stats["frontend"]["translation"]
+    controller = sim.stats["memory_system"]["controller"]
+
+    assert sim.stats["frontend"]["trace_passes_completed_per_core"][1] > 0
+    assert coloring["page_class_conflicts"] == 0
+    assert coloring["pages_tolerant"] == 8
+    assert coloring["tolerant_pages_ba_0"] == 8
+    assert coloring["pages_reliable"] > coloring["pages_tolerant"]
+    assert controller["tolerant_demand_reads_served"] > 0
+    assert controller["reliable_demand_reads_served"] > 0

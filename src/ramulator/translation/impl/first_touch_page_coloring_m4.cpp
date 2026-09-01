@@ -42,7 +42,11 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
   std::vector<int> m_reliable_bas;
   std::vector<int> m_tolerant_cores;
   std::unordered_set<int> m_tolerant_core_set;
-  std::unordered_map<PageKey, uint64_t, PageKeyHash> m_page_table;
+  struct PageEntry {
+    uint64_t physical_page;
+    bool tolerant;
+  };
+  std::unordered_map<PageKey, PageEntry, PageKeyHash> m_page_table;
   uint64_t m_pages_per_core = 0;
   std::vector<std::array<uint64_t, 4>> m_next_candidate_page;
   std::vector<size_t> m_next_tolerant_ba;
@@ -54,6 +58,7 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
   std::array<size_t, 4> s_pages_by_ba{};
   std::array<size_t, 4> s_tolerant_pages_by_ba{};
   std::array<size_t, 4> s_reliable_pages_by_ba{};
+  size_t s_page_class_conflicts = 0;
 
   bool is_power_of_two(Addr_t value) const {
     return value > 0 && (value & (value - 1)) == 0;
@@ -140,6 +145,7 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
     m_stats.add("pages_tolerant", s_pages_tolerant);
     m_stats.add("pages_reliable", s_pages_reliable);
     m_stats.add("pages_borrowed", s_pages_borrowed);
+    m_stats.add("page_class_conflicts", s_page_class_conflicts);
     for (int ba = 0; ba < 4; ba++) {
       m_stats.add(fmt::format("pages_ba_{}", ba), s_pages_by_ba.at(ba));
       m_stats.add(
@@ -159,7 +165,9 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
     const PageKey key{req.source_id, virtual_page};
     auto found = m_page_table.find(key);
     if (found == m_page_table.end()) {
-      const bool tolerant = m_tolerant_core_set.count(req.source_id) != 0;
+      const bool tolerant = req.memory_class >= 0
+                                ? req.memory_class == 1
+                                : m_tolerant_core_set.count(req.source_id) != 0;
       uint64_t physical_page = 0;
       int selected_ba = -1;
       if (tolerant) {
@@ -185,9 +193,13 @@ class FirstTouchPageColoringM4 final : public ITranslation, public Implementatio
         s_pages_reliable++;
         s_reliable_pages_by_ba.at(selected_ba)++;
       }
-      found = m_page_table.emplace(key, physical_page).first;
+      found = m_page_table.emplace(key, PageEntry{physical_page, tolerant}).first;
+    } else if (req.memory_class == 0 && found->second.tolerant) {
+      s_page_class_conflicts++;
+      throw std::runtime_error(
+          "FirstTouchPageColoringM4 reliable access aliases a tolerant physical page");
     }
-    req.addr = static_cast<Addr_t>(found->second) * m_page_size + page_offset;
+    req.addr = static_cast<Addr_t>(found->second.physical_page) * m_page_size + page_offset;
     return true;
   }
 };

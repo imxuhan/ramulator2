@@ -457,7 +457,10 @@ void ControllerBase::serve_completed_reads() {
       s_demand_reads_served_per_core.at(core)++;
       s_read_latency_per_core.at(core) += latency;
       m_read_latency_histogram_per_core.at(core)[latency]++;
-      size_t request_class = m_tolerant_core_set.count(req.source_id) != 0 ? 0 : 1;
+      const bool tolerant = req.memory_class >= 0
+                                ? req.memory_class == 1
+                                : m_tolerant_core_set.count(req.source_id) != 0;
+      size_t request_class = tolerant ? 0 : 1;
       s_class_demand_reads_served.at(request_class)++;
       s_class_read_latency.at(request_class) += latency;
       m_class_read_latency_histogram.at(request_class)[latency]++;

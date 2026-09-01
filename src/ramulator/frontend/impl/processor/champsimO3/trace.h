@@ -45,6 +45,7 @@ class ChampSimTrace {
   ChampSimTraceRecord next();
   size_t records_read() const { return m_records_read; }
   size_t passes_completed() const { return m_passes_completed; }
+  size_t record_index_this_pass() const { return m_records_this_pass - 1; }
 };
 
 }  // namespace Ramulator

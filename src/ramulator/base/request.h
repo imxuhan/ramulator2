@@ -27,6 +27,9 @@ struct Request {
   int type_id = -1;        // Request type. -1 is the convention for internal maintenance/direct-command requests.
   int source_id = -1;      // Source identifier (e.g., which core)
   int ingress_id = -1;     // External ingress identifier (e.g., gem5 memory port)
+  // -1 preserves legacy whole-core classification, 0 is reliable, and 1 is
+  // tolerant. Object-sidecar frontends set this for every demand access.
+  int memory_class = -1;
 
   int size_bytes = -1;     // Request size in bytes. Must be set explicitly by the frontend.
 
