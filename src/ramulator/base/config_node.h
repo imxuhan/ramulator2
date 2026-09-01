@@ -244,6 +244,18 @@ inline std::vector<int> ConfigNode::_convert<std::vector<int>>() const {
   return {_convert<int>()};
 }
 
+template <>
+inline std::vector<double> ConfigNode::_convert<std::vector<double>>() const {
+  if (is_sequence()) {
+    std::vector<double> result;
+    for (const auto& item : seq()) {
+      result.push_back(item.as<double>());
+    }
+    return result;
+  }
+  return {_convert<double>()};
+}
+
 }  // namespace Ramulator
 
 #endif  // RAMULATOR_BASE_CONFIG_NODE_H
