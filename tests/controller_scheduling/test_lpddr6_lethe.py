@@ -60,7 +60,7 @@ def test_lethe_m2_configuration_rejects_out_of_scope_combinations():
         )
 
     with pytest.raises(RuntimeError, match="16 Gb nRFCdb"):
-        make_lethe_dut(dram_kwargs={"density": 32768})
+        make_lethe_dut(dram_kwargs={"nRFCdb": 560})
 
 
 def test_lethe_ba_coverage_advances_independently():
