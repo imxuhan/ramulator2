@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <stdexcept>
 
 #include <fmt/format.h>
@@ -103,6 +104,12 @@ class GenericDRAMSystem final : public IMemorySystem, public Implementation {
 
   int get_tx_bytes() override {
     return m_tx_bytes;
+  }
+
+  bool is_idle() const override {
+    return std::all_of(
+        m_controllers.begin(), m_controllers.end(),
+        [](const IController* controller) { return controller->is_idle(); });
   }
 };
 

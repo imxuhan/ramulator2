@@ -266,6 +266,19 @@ LPDDR6.org_presets = {
         "row": 1 << 16,
         "column": 1 << 10,
     },
+    "LPDDR6_32Gb_x12": {
+        "density": 32768,
+        # Table 302 places 24--32 Gb devices in the 380/210 ns refresh row.
+        "refresh_density_per_2_subchannels": 32768,
+        "dq": 12,
+        "channel_width": 12,
+        "odt_enabled": True,
+        "rank": 1,
+        "bankgroup": 4,
+        "bank": 4,
+        "row": 1 << 17,
+        "column": 1 << 10,
+    },
 }
 
 

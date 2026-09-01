@@ -25,6 +25,7 @@ class IController {
   virtual bool send(Request& req) = 0;
   virtual bool priority_send(Request& req) = 0;
   virtual void tick() = 0;
+  virtual bool is_idle() const = 0;
 
   virtual int get_tx_bytes() const = 0;
   virtual int get_num_levels() const = 0;

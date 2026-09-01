@@ -12,6 +12,10 @@
 
 namespace Ramulator {
 
+bool LPDDRControllerBase::is_idle() const {
+  return ControllerBase::is_idle() && m_activating_buffer.size() == 0 && !m_cas_issued;
+}
+
 void LPDDRControllerBase::init() {
   init_base();
 

@@ -78,6 +78,10 @@ class SimpleO3LLC {
   // Returns true when the whole cache line has arrived. A cache line may span
   // multiple DRAM transactions (LPDDR6 uses 32 B payloads for a 64 B line).
   bool receive(Request& req);
+  bool is_idle() const {
+    return m_mshrs.empty() && m_miss_list.empty() && m_hit_list.empty();
+  }
+  void reset_stats();
 
   void serialize(std::string serialization_filename);
   void deserialize(std::string serialization_filename);

@@ -44,6 +44,11 @@ class ControllerBase : public IController, public Implementation {
 
   bool send(Request& req) override;
   bool priority_send(Request& req) override;
+  bool is_idle() const override;
+
+  // Traffic-aware refresh managers use this read-only score when choosing a
+  // legal bank pair. Maintenance requests are intentionally excluded.
+  size_t count_pending_requests_for_banks(const std::vector<int>& flat_banks) const;
 
   void update_stats() override;
   void finalize() override;

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <memory>
 #include <limits>
 #include <stdexcept>
@@ -19,6 +20,8 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
 
   ITranslation* m_translation = nullptr;
   int m_num_expected_insts = 0;
+  int m_warmup_insts = 0;
+  bool m_roi_started = false;
   std::vector<std::string> m_traces;
   int m_ipc = 4;
   int m_depth = 128;
@@ -35,11 +38,14 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
   std::vector<size_t> s_cycles_recorded;
   std::vector<size_t> s_trace_records;
   std::vector<size_t> s_trace_passes_completed;
+  size_t s_warmup_cycles = 0;
+  size_t s_warmup_drain_cycles = 0;
 
  public:
   void init() override {
     RAMULATOR_PARSE_PARAM(m_clock_ratio, unsigned int, "clock_ratio").required();
     RAMULATOR_PARSE_PARAM(m_num_expected_insts, int, "num_expected_insts").required();
+    RAMULATOR_PARSE_PARAM(m_warmup_insts, int, "warmup_insts").default_val(0);
     RAMULATOR_PARSE_PARAM(m_traces, std::vector<std::string>, "traces").required();
     RAMULATOR_PARSE_PARAM(m_ipc, int, "ipc").default_val(4);
     RAMULATOR_PARSE_PARAM(m_depth, int, "inst_window_depth").default_val(128);
@@ -55,8 +61,12 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
     if (m_num_expected_insts <= 0) {
       throw std::runtime_error("ChampSimO3 num_expected_insts must be positive");
     }
-    if (m_num_expected_insts > std::numeric_limits<int>::max() - m_depth) {
-      throw std::runtime_error("ChampSimO3 num_expected_insts exceeds request tag capacity");
+    if (m_warmup_insts < 0) {
+      throw std::runtime_error("ChampSimO3 warmup_insts must be non-negative");
+    }
+    if (m_num_expected_insts >
+        std::numeric_limits<int>::max() - m_depth - m_warmup_insts) {
+      throw std::runtime_error("ChampSimO3 warmup plus ROI exceeds request tag capacity");
     }
 
     RAMULATOR_CREATE_CHILD(m_translation, ITranslation);
@@ -67,7 +77,8 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
 
     for (int core_id = 0; core_id < static_cast<int>(m_traces.size()); core_id++) {
       auto core = std::make_unique<ChampSimO3Core>(
-          m_clk, core_id, m_ipc, m_depth, static_cast<size_t>(m_num_expected_insts),
+          m_clk, core_id, m_ipc, m_depth, static_cast<size_t>(m_warmup_insts),
+          static_cast<size_t>(m_num_expected_insts),
           m_traces.at(core_id), m_translation, m_llc.get());
       core->set_callback([this](Request& req) { receive(req); });
       m_cores.push_back(std::move(core));
@@ -80,6 +91,9 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
 
     m_stats.add("trace_abi", m_trace_abi);
     m_stats.add("num_expected_insts", m_num_expected_insts);
+    m_stats.add("warmup_insts", m_warmup_insts);
+    m_stats.add("warmup_cycles", s_warmup_cycles);
+    m_stats.add("warmup_drain_cycles", s_warmup_drain_cycles);
     m_stats.add("insts_retired_per_core", s_insts_retired);
     m_stats.add("cycles_recorded_per_core", s_cycles_recorded);
     m_stats.add("trace_records_per_core", s_trace_records);
@@ -90,6 +104,7 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
     m_stats.add("llc_read_misses", m_llc->s_llc_read_misses);
     m_stats.add("llc_write_misses", m_llc->s_llc_write_misses);
     m_stats.add("llc_mshr_unavailable", m_llc->s_llc_mshr_unavailable);
+    m_roi_started = m_warmup_insts == 0;
   }
 
   void tick() override {
@@ -97,6 +112,21 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
     m_llc->tick();
     for (auto& core : m_cores) {
       core->tick();
+    }
+    if (!m_roi_started) {
+      const bool all_at_barrier = std::all_of(
+          m_cores.begin(), m_cores.end(),
+          [](const auto& core) { return core->reached_warmup; });
+      if (all_at_barrier && m_llc->is_idle() && m_memory_system->is_idle()) {
+        s_warmup_cycles = static_cast<size_t>(m_clk);
+        reset_stats_recursive();
+        m_memory_system->reset_stats_recursive();
+        m_llc->reset_stats();
+        for (auto& core : m_cores) core->begin_roi();
+        m_roi_started = true;
+      } else if (all_at_barrier) {
+        s_warmup_drain_cycles++;
+      }
     }
   }
 
@@ -131,7 +161,7 @@ class ChampSimO3 final : public IFrontEnd, public Implementation {
 
   void update_stats() override {
     for (size_t core_id = 0; core_id < m_cores.size(); core_id++) {
-      s_insts_retired.at(core_id) = m_cores.at(core_id)->s_insts_retired;
+      s_insts_retired.at(core_id) = m_cores.at(core_id)->roi_insts_retired();
       s_cycles_recorded.at(core_id) = m_cores.at(core_id)->s_cycles_recorded;
       s_trace_records.at(core_id) = m_cores.at(core_id)->s_trace_records;
       s_trace_passes_completed.at(core_id) = m_cores.at(core_id)->trace_passes_completed();

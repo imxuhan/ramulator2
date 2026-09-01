@@ -65,6 +65,7 @@ class IMemorySystem : public TopLevel<IMemorySystem> {
 
   // Returns the number of bytes per DRAM transaction (channel_width * internal_prefetch / 8).
   virtual int get_tx_bytes() = 0;
+  virtual bool is_idle() const = 0;
 };
 
 }  // namespace Ramulator

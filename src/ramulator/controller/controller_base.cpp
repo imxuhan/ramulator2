@@ -239,6 +239,30 @@ bool ControllerBase::priority_send(Request& req) {
   return is_success;
 }
 
+bool ControllerBase::is_idle() const {
+  return m_pending.empty() && m_active_buffer.size() == 0 &&
+         m_priority_buffer.size() == 0 && m_read_buffer.size() == 0 &&
+         m_write_buffer.size() == 0;
+}
+
+size_t ControllerBase::count_pending_requests_for_banks(
+    const std::vector<int>& flat_banks) const {
+  std::unordered_set<int> wanted(flat_banks.begin(), flat_banks.end());
+  size_t count = 0;
+  auto count_buffer = [&](const ReqBuffer& buffer) {
+    for (const auto& req : buffer.buffer) {
+      if (!req.addr_vec.empty() &&
+          wanted.count(m_device.get_flat_bank_id(req.addr_vec)) != 0) {
+        count++;
+      }
+    }
+  };
+  count_buffer(m_read_buffer);
+  count_buffer(m_write_buffer);
+  count_buffer(m_active_buffer);
+  return count;
+}
+
 // ── Tick preamble ───────────────────────────────────────────────────────
 
 void ControllerBase::tick_prologue() {

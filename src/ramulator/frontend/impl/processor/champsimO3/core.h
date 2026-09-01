@@ -43,6 +43,11 @@ class ChampSimO3Core {
   int m_id;
   int m_ipc;
   size_t m_num_expected_insts;
+  size_t m_warmup_insts = 0;
+  size_t m_roi_insts = 0;
+  size_t m_roi_start_insts = 0;
+  size_t m_roi_start_clk = 0;
+  bool m_roi_started = false;
   ChampSimTrace m_trace;
   InstWindow m_window;
   ITranslation* m_translation;
@@ -61,15 +66,19 @@ class ChampSimO3Core {
 
  public:
   bool reached_expected_num_insts = false;
+  bool reached_warmup = false;
   size_t s_insts_retired = 0;
   size_t s_cycles_recorded = 0;
   size_t s_trace_records = 0;
 
-  ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth, size_t num_expected_insts,
+  ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth, size_t warmup_insts,
+                 size_t num_expected_insts,
                  const std::string& trace_path, ITranslation* translation, SimpleO3LLC* llc);
   void set_callback(std::function<void(Request&)> callback) { m_callback = std::move(callback); }
   void tick();
   void receive(Request& req);
+  void begin_roi();
+  size_t roi_insts_retired() const;
   size_t trace_passes_completed() const { return m_trace.passes_completed(); }
 };
 

@@ -15,6 +15,7 @@ CPP_TYPE_MAP = {
     "std::string": (str, None),
     "std::vector<std::string>": (list, None),
     "std::vector<int>": (list, "std::vector<int>"),
+    "std::vector<double>": (list, "std::vector<double>"),
     "uint64_t": (int, "uint64_t"),
     "Addr_t": (int, "Addr_t"),
 }

@@ -15,6 +15,7 @@ class LPDDRControllerBase : public ControllerBase {
   void setup(IFrontEnd* frontend, IMemorySystem* memory_system) override;
   void tick() override;
   void reset_stats() override;
+  bool is_idle() const override;
 
  protected:
   LPDDRControllerBase(const ConfigNode& config, Implementation* parent)

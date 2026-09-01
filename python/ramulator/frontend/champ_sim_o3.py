@@ -14,6 +14,7 @@ class ChampSimO3(Component):
     impl = "ChampSimO3"
     clock_ratio = Param(int, required=True, cpp_type="unsigned int")
     num_expected_insts = Param(int, required=True)
+    warmup_insts = Param(int, default=0)
     traces = Param(list, required=True)
     ipc = Param(int, default=4)
     inst_window_depth = Param(int, default=128)

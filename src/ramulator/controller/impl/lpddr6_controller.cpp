@@ -76,11 +76,15 @@ class LPDDR6Controller final : public LPDDRControllerBase {
 
     const std::string refresh_impl =
         m_config["refresh_manager"]["impl"].as<std::string>("");
-    if (m_refdb_mode == RefdbMode::Standard && refresh_impl == "LPDDR6LetheM2") {
-      throw std::runtime_error("LPDDR6LetheM2 refresh manager requires refdb_mode='lethe'");
+    if (m_refdb_mode == RefdbMode::Standard &&
+        (refresh_impl == "LPDDR6LetheM2" || refresh_impl == "LPDDR6LetheM4")) {
+      throw std::runtime_error(
+          "LPDDR6LetheM2/LPDDR6LetheM4 refresh manager requires refdb_mode='lethe'");
     }
-    if (m_refdb_mode == RefdbMode::Lethe && refresh_impl == "LPDDR6DualBank") {
-      throw std::runtime_error("LPDDR6DualBank refresh manager requires refdb_mode='standard'");
+    if (m_refdb_mode == RefdbMode::Lethe &&
+        (refresh_impl == "LPDDR6DualBank" || refresh_impl == "LPDDR6DualBankM4")) {
+      throw std::runtime_error(
+          "LPDDR6DualBank/LPDDR6DualBankM4 refresh manager requires refdb_mode='standard'");
     }
 
     s_refdb_mode_lethe = m_refdb_mode == RefdbMode::Lethe ? 1 : 0;
@@ -92,6 +96,9 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     m_stats.add("refdb_mode_lethe", s_refdb_mode_lethe);
     m_stats.add("refdb_issued", s_refdb_issued);
     m_stats.add("refdb_bank_busy_cycles", s_refdb_bank_busy_cycles);
+    m_stats.add("refdb_tfaw_blocked_cycles", s_refdb_tfaw_blocked_cycles);
+    m_stats.add("refdb_gap_blocked_cycles", s_refdb_gap_blocked_cycles);
+    m_stats.add("refdb_coverage_blocked_cycles", s_refdb_coverage_blocked_cycles);
     m_stats.add("refdb_rounds_completed", s_refdb_rounds_completed);
     m_stats.add("refdb_shared_row", m_refdb_shared_row);
     for (size_t ba = 0; ba < kBaCount; ba++) {
@@ -110,6 +117,12 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     s_refdb_issued = 0;
     s_refdb_bank_busy_cycles = 0;
     s_refdb_rounds_completed = 0;
+    s_refdb_tfaw_blocked_cycles = 0;
+    s_refdb_gap_blocked_cycles = 0;
+    s_refdb_coverage_blocked_cycles = 0;
+    m_last_tfaw_block_cycle = -1;
+    m_last_gap_block_cycle = -1;
+    m_last_coverage_block_cycle = -1;
     s_refdb_per_ba.fill(0);
     s_refdb_ba_rounds_completed.fill(0);
     std::fill(s_refdb_per_bank.begin(), s_refdb_per_bank.end(), 0);
@@ -123,19 +136,32 @@ class LPDDR6Controller final : public LPDDRControllerBase {
       for (Clk_t issued_at : m_activation_credits) {
         if (issued_at + m_nFAW > issue_clk) live_credits++;
       }
-      if (live_credits + activation_credits > 4) return false;
+      if (live_credits + activation_credits > 4) {
+        if (req.command == m_cmd_refdb) {
+          record_blocked_cycle(s_refdb_tfaw_blocked_cycles, m_last_tfaw_block_cycle, issue_clk);
+        }
+        return false;
+      }
     }
 
     if (req.command != m_cmd_refdb) return true;
     if (req.secondary_addr_vec.empty()) return false;
 
     if (m_refdb_mode == RefdbMode::Standard) {
-      if (issue_clk < m_next_refdb_cycle) return false;
+      if (issue_clk < m_next_refdb_cycle) {
+        record_blocked_cycle(s_refdb_gap_blocked_cycles, m_last_gap_block_cycle, issue_clk);
+        return false;
+      }
 
       int first = coverage_bit(req.addr_vec);
       int second = coverage_bit(req.secondary_addr_vec);
       uint16_t pair = static_cast<uint16_t>((1u << first) | (1u << second));
-      return (m_refdb_coverage & pair) == 0;
+      if ((m_refdb_coverage & pair) != 0) {
+        record_blocked_cycle(
+            s_refdb_coverage_blocked_cycles, m_last_coverage_block_cycle, issue_clk);
+        return false;
+      }
+      return true;
     }
 
     int ba = bank_address(req.addr_vec);
@@ -143,14 +169,21 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     if (ba != second_ba) return false;
 
     uint8_t pair = lethe_coverage_pair(req);
-    if ((m_refdb_ba_coverage[ba] & pair) != 0) return false;
+    if ((m_refdb_ba_coverage[ba] & pair) != 0) {
+      record_blocked_cycle(
+          s_refdb_coverage_blocked_cycles, m_last_coverage_block_cycle, issue_clk);
+      return false;
+    }
 
     if (m_last_refdb_cycle >= 0) {
       Clk_t gap = m_nR2R_short;
       if (m_last_refdb_ba == ba && m_last_refdb_advanced) {
         gap = m_nR2R_long;
       }
-      if (issue_clk < m_last_refdb_cycle + gap) return false;
+      if (issue_clk < m_last_refdb_cycle + gap) {
+        record_blocked_cycle(s_refdb_gap_blocked_cycles, m_last_gap_block_cycle, issue_clk);
+        return false;
+      }
     }
     return true;
   }
@@ -241,9 +274,23 @@ class LPDDR6Controller final : public LPDDRControllerBase {
   size_t s_refdb_issued = 0;
   size_t s_refdb_bank_busy_cycles = 0;
   size_t s_refdb_rounds_completed = 0;
+  mutable size_t s_refdb_tfaw_blocked_cycles = 0;
+  mutable size_t s_refdb_gap_blocked_cycles = 0;
+  mutable size_t s_refdb_coverage_blocked_cycles = 0;
+  mutable Clk_t m_last_tfaw_block_cycle = -1;
+  mutable Clk_t m_last_gap_block_cycle = -1;
+  mutable Clk_t m_last_coverage_block_cycle = -1;
   std::array<size_t, kBaCount> s_refdb_per_ba{};
   std::array<size_t, kBaCount> s_refdb_ba_rounds_completed{};
   std::vector<size_t> s_refdb_per_bank;
+
+  static void record_blocked_cycle(
+      size_t& counter, Clk_t& last_cycle, Clk_t issue_clk) {
+    if (last_cycle != issue_clk) {
+      counter++;
+      last_cycle = issue_clk;
+    }
+  }
 
   int bank_address(const AddrVec_t& addr_vec) const {
     int ba = addr_vec[m_bank_level_local];

@@ -55,20 +55,37 @@ int ChampSimO3Core::InstWindow::retire() {
 }
 
 ChampSimO3Core::ChampSimO3Core(const Clk_t& clk, int id, int ipc, int depth,
-                               size_t num_expected_insts, const std::string& trace_path,
+                               size_t warmup_insts, size_t num_expected_insts,
+                               const std::string& trace_path,
                                ITranslation* translation, SimpleO3LLC* llc)
     : m_clk(clk),
       m_id(id),
       m_ipc(ipc),
-      m_num_expected_insts(num_expected_insts),
+      m_num_expected_insts(warmup_insts + num_expected_insts),
+      m_warmup_insts(warmup_insts),
+      m_roi_insts(num_expected_insts),
       m_trace(trace_path),
       m_window(ipc, depth),
       m_translation(translation),
       m_llc(llc),
       m_current(m_trace.next()) {
-  if (m_num_expected_insts == 0) {
+  if (num_expected_insts == 0) {
     throw std::runtime_error("ChampSimO3 num_expected_insts must be positive");
   }
+  if (m_warmup_insts == 0) begin_roi();
+}
+
+void ChampSimO3Core::begin_roi() {
+  m_roi_started = true;
+  reached_warmup = true;
+  m_roi_start_insts = s_insts_retired;
+  m_num_expected_insts = m_roi_start_insts + m_roi_insts;
+  m_roi_start_clk = static_cast<size_t>(m_clk);
+}
+
+size_t ChampSimO3Core::roi_insts_retired() const {
+  if (s_insts_retired <= m_roi_start_insts) return 0;
+  return std::min(s_insts_retired - m_roi_start_insts, m_roi_insts);
 }
 
 int ChampSimO3Core::current_memory_count() const {
@@ -89,9 +106,14 @@ void ChampSimO3Core::advance_trace() {
 
 void ChampSimO3Core::tick() {
   s_insts_retired += m_window.retire();
-  if (!reached_expected_num_insts && s_insts_retired >= m_num_expected_insts) {
+  if (!m_roi_started && s_insts_retired >= m_warmup_insts) {
+    reached_warmup = true;
+    return;
+  }
+  if (m_roi_started && !reached_expected_num_insts &&
+      s_insts_retired >= m_num_expected_insts) {
     reached_expected_num_insts = true;
-    s_cycles_recorded = static_cast<size_t>(m_clk);
+    s_cycles_recorded = static_cast<size_t>(m_clk) - m_roi_start_clk;
   }
   if (reached_expected_num_insts) {
     return;

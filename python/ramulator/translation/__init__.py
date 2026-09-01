@@ -5,6 +5,7 @@
 # Regenerate:   python -m ramulator codegen
 ###############################################################################
 from .first_touch_page_coloring import FirstTouchPageColoring
+from .first_touch_page_coloring_m4 import FirstTouchPageColoringM4
 from .no_translation import NoTranslation
 
-__all__ = ['FirstTouchPageColoring', 'NoTranslation']
+__all__ = ['FirstTouchPageColoring', 'FirstTouchPageColoringM4', 'NoTranslation']

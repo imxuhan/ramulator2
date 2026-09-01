@@ -171,6 +171,15 @@ bool SimpleO3LLC::receive(Request& req) {
   return true;
 };
 
+void SimpleO3LLC::reset_stats() {
+  s_llc_read_access = 0;
+  s_llc_write_access = 0;
+  s_llc_read_misses = 0;
+  s_llc_write_misses = 0;
+  s_llc_eviction = 0;
+  s_llc_mshr_unavailable = 0;
+}
+
 int SimpleO3LLC::memory_transactions_per_line() const {
   int tx_bytes = m_memory_system->get_tx_bytes();
   if (tx_bytes <= 0 || m_linesize_bytes % static_cast<size_t>(tx_bytes) != 0) {
