@@ -13,6 +13,10 @@ target_sources(
   impl/processor/simpleO3/core.h      impl/processor/simpleO3/core.cpp
   impl/processor/simpleO3/llc.h       impl/processor/simpleO3/llc.cpp
 
+  impl/processor/champsimO3/trace.h   impl/processor/champsimO3/trace.cpp
+  impl/processor/champsimO3/core.h    impl/processor/champsimO3/core.cpp
+  impl/processor/champsimO3/champsimO3.cpp
+
   impl/processor/bhO3/bhO3.cpp
   impl/processor/bhO3/bhcore.h        impl/processor/bhO3/bhcore.cpp
   impl/processor/bhO3/bhllc.h         impl/processor/bhO3/bhllc.cpp

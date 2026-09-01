@@ -53,6 +53,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     m_nWCKPST = spec.get_timing_value("nWCKPST");
     m_cas_deadline_guard = std::max(2, spec.get_timing_value("nCAS"));
     m_nFAW = spec.get_timing_value("nFAW");
+    m_nRFCdb = spec.get_timing_value("nRFCdb");
     m_nR2R_short = spec.get_timing_value("ndbR2dbR_S");
     m_nR2R_long = spec.get_timing_value("ndbR2dbR_L");
 
@@ -83,6 +84,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     LPDDRControllerBase::setup(frontend, memory_system);
     m_stats.add("refdb_mode_lethe", s_refdb_mode_lethe);
     m_stats.add("refdb_issued", s_refdb_issued);
+    m_stats.add("refdb_bank_busy_cycles", s_refdb_bank_busy_cycles);
     m_stats.add("refdb_rounds_completed", s_refdb_rounds_completed);
     m_stats.add("refdb_shared_row", m_refdb_shared_row);
     for (size_t ba = 0; ba < kBaCount; ba++) {
@@ -99,6 +101,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
   void reset_stats() override {
     LPDDRControllerBase::reset_stats();
     s_refdb_issued = 0;
+    s_refdb_bank_busy_cycles = 0;
     s_refdb_rounds_completed = 0;
     s_refdb_per_ba.fill(0);
     s_refdb_ba_rounds_completed.fill(0);
@@ -158,6 +161,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
     int first = coverage_bit(req.addr_vec);
     int second = coverage_bit(req.secondary_addr_vec);
     s_refdb_issued++;
+    s_refdb_bank_busy_cycles += static_cast<size_t>(2 * m_nRFCdb);
     s_refdb_per_bank[first]++;
     s_refdb_per_bank[second]++;
     int ba = bank_address(req.addr_vec);
@@ -212,6 +216,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
   int m_bank_level_local = -1;
   int m_bank_count = -1;
   int m_nFAW = -1;
+  int m_nRFCdb = -1;
   int m_nR2R_short = -1;
   int m_nR2R_long = -1;
   RefdbMode m_refdb_mode = RefdbMode::Standard;
@@ -227,6 +232,7 @@ class LPDDR6Controller final : public LPDDRControllerBase {
 
   size_t s_refdb_mode_lethe = 0;
   size_t s_refdb_issued = 0;
+  size_t s_refdb_bank_busy_cycles = 0;
   size_t s_refdb_rounds_completed = 0;
   std::array<size_t, kBaCount> s_refdb_per_ba{};
   std::array<size_t, kBaCount> s_refdb_ba_rounds_completed{};

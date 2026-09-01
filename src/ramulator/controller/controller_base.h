@@ -2,6 +2,7 @@
 #define RAMULATOR_CONTROLLER_CONTROLLER_BASE_H
 
 #include <deque>
+#include <map>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -126,6 +127,11 @@ class ControllerBase : public IController, public Implementation {
 
   size_t s_read_latency = 0;
   float s_avg_read_latency = 0;
+  std::vector<size_t> s_demand_reads_served_per_core;
+  std::vector<size_t> s_read_latency_per_core;
+  std::vector<float> s_avg_read_latency_per_core;
+  std::vector<size_t> s_p99_read_latency_per_core;
+  std::vector<std::map<int, size_t>> m_read_latency_histogram_per_core;
 
   float s_read_throughput_MBps = 0;
   float s_write_throughput_MBps = 0;

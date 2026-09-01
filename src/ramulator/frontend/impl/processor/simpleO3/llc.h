@@ -14,6 +14,7 @@ namespace Ramulator {
 
 class SimpleO3LLC {
   friend class SimpleO3;
+  friend class ChampSimO3;
   struct Line {
     Addr_t addr = -1;
     Addr_t tag = -1;

@@ -101,6 +101,11 @@ void ControllerBase::setup_base(IFrontEnd* frontend, IMemorySystem* memory_syste
   s_read_row_hits_per_core.resize(m_num_cores, 0);
   s_read_row_misses_per_core.resize(m_num_cores, 0);
   s_read_row_conflicts_per_core.resize(m_num_cores, 0);
+  s_demand_reads_served_per_core.resize(m_num_cores, 0);
+  s_read_latency_per_core.resize(m_num_cores, 0);
+  s_avg_read_latency_per_core.resize(m_num_cores, 0);
+  s_p99_read_latency_per_core.resize(m_num_cores, 0);
+  m_read_latency_histogram_per_core.resize(m_num_cores);
 
   m_stats.add("cycles", m_measured_clk);
   m_stats.add("row_hits", s_row_hits);
@@ -117,6 +122,10 @@ void ControllerBase::setup_base(IFrontEnd* frontend, IMemorySystem* memory_syste
     m_stats.add(fmt::format("read_row_hits_core_{}", core_id), s_read_row_hits_per_core[core_id]);
     m_stats.add(fmt::format("read_row_misses_core_{}", core_id), s_read_row_misses_per_core[core_id]);
     m_stats.add(fmt::format("read_row_conflicts_core_{}", core_id), s_read_row_conflicts_per_core[core_id]);
+    m_stats.add(fmt::format("demand_reads_served_core_{}", core_id), s_demand_reads_served_per_core[core_id]);
+    m_stats.add(fmt::format("read_latency_core_{}", core_id), s_read_latency_per_core[core_id]);
+    m_stats.add(fmt::format("avg_read_latency_core_{}", core_id), s_avg_read_latency_per_core[core_id]);
+    m_stats.add(fmt::format("p99_read_latency_core_{}", core_id), s_p99_read_latency_per_core[core_id]);
   }
 
   m_stats.add("num_read_reqs", s_num_read_reqs);
@@ -404,7 +413,15 @@ void ControllerBase::serve_completed_reads() {
     if (req.depart > m_clk) {
       break;
     }
-    s_read_latency += req.depart - req.arrive;
+    int latency = static_cast<int>(req.depart - req.arrive);
+    s_read_latency += latency;
+    if (req.ingress_id >= 0 && req.source_id >= 0 &&
+        req.source_id < static_cast<int>(m_num_cores)) {
+      size_t core = static_cast<size_t>(req.source_id);
+      s_demand_reads_served_per_core.at(core)++;
+      s_read_latency_per_core.at(core) += latency;
+      m_read_latency_histogram_per_core.at(core)[latency]++;
+    }
     if (req.callback) {
       req.callback(req);
     }
@@ -426,6 +443,23 @@ void ControllerBase::set_write_mode() {
 
 void ControllerBase::update_stats() {
   s_avg_read_latency = (s_num_read_reqs_served > 0) ? (float)s_read_latency / (float)s_num_read_reqs_served : 0;
+  for (size_t core = 0; core < m_num_cores; core++) {
+    size_t count = s_demand_reads_served_per_core.at(core);
+    s_avg_read_latency_per_core.at(core) =
+        count > 0 ? static_cast<float>(s_read_latency_per_core.at(core)) / static_cast<float>(count) : 0;
+    s_p99_read_latency_per_core.at(core) = 0;
+    if (count > 0) {
+      size_t target = (count * 99 + 99) / 100;
+      size_t cumulative = 0;
+      for (const auto& [latency, occurrences] : m_read_latency_histogram_per_core.at(core)) {
+        cumulative += occurrences;
+        if (cumulative >= target) {
+          s_p99_read_latency_per_core.at(core) = static_cast<size_t>(latency);
+          break;
+        }
+      }
+    }
+  }
 
   s_queue_len_avg = (m_measured_clk > 0) ? (float)s_queue_len / (float)m_measured_clk : 0;
   s_read_queue_len_avg = (m_measured_clk > 0) ? (float)s_read_queue_len / (float)m_measured_clk : 0;
@@ -459,6 +493,13 @@ void ControllerBase::reset_stats() {
   std::fill(s_read_row_hits_per_core.begin(), s_read_row_hits_per_core.end(), 0);
   std::fill(s_read_row_misses_per_core.begin(), s_read_row_misses_per_core.end(), 0);
   std::fill(s_read_row_conflicts_per_core.begin(), s_read_row_conflicts_per_core.end(), 0);
+  std::fill(s_demand_reads_served_per_core.begin(), s_demand_reads_served_per_core.end(), 0);
+  std::fill(s_read_latency_per_core.begin(), s_read_latency_per_core.end(), 0);
+  std::fill(s_avg_read_latency_per_core.begin(), s_avg_read_latency_per_core.end(), 0);
+  std::fill(s_p99_read_latency_per_core.begin(), s_p99_read_latency_per_core.end(), 0);
+  for (auto& histogram : m_read_latency_histogram_per_core) {
+    histogram.clear();
+  }
 
   s_num_read_reqs = 0;
   s_num_write_reqs = 0;
