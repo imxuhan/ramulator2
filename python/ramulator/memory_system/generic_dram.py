@@ -13,5 +13,6 @@ from ramulator.param import Param, Child, ChildList
 class GenericDRAM(Component):
     impl = "GenericDRAM"
     clock_ratio = Param(int, required=True, cpp_type="unsigned int")
+    tolerant_cores = Param(list, default=[], cpp_type="std::vector<int>")
     channel_mapper = Child("channel_mapper")
     controllers = ChildList("controller")
